@@ -2,6 +2,7 @@ import {
   buildTree,
   descendants,
   isInSubtree,
+  moveLink,
   removeLink,
   type Note,
   type NoteId,
@@ -9,6 +10,7 @@ import {
   type Tree,
 } from "../model/notes";
 import { createSampleNotes } from "../model/sample";
+import { loadSettings } from "./persist";
 import type { ThemeId } from "../theme/themes";
 
 /** 하위 전체 펼치기에서 이보다 많이 열리면 확인 창을 띄운다 */
@@ -78,6 +80,8 @@ export type Action =
   | { type: "delete"; id: NoteId }
   | { type: "undoDelete" }
   | { type: "menu"; menu: State["menu"] }
+  /** 같은 부모의 보이는 형제 패널 사이에서 순서를 바꾼다. index는 보이는 형제 중 새 자리 */
+  | { type: "reorder"; id: NoteId; index: number }
   | { type: "expandAll"; id: NoteId; confirmed?: boolean }
   | { type: "collapseAll"; id: NoteId }
   | { type: "nav"; dir: Dir }
@@ -107,7 +111,7 @@ export function initState(): State {
     deleted: null,
     colWidths: {},
     panelHeights: {},
-    settings: { openMode: "add", lines: false, theme: "teal", brightness: "system" },
+    settings: loadSettings(),
   };
 }
 
@@ -123,7 +127,7 @@ export function columns(s: Pick<State, "tree" | "open" | "rootId" | "minimized">
 }
 
 /** 화면에 보이는 자식. 열려 있어야 하고, 부모가 최소화돼 있지 않아야 한다. */
-function visibleKids(s: Pick<State, "tree" | "open" | "minimized">, id: NoteId): NoteId[] {
+export function visibleKids(s: Pick<State, "tree" | "open" | "minimized">, id: NoteId): NoteId[] {
   if (s.minimized.has(id)) return [];
   return (s.tree.kids[id] ?? []).filter((k) => s.open.has(k));
 }
@@ -299,6 +303,18 @@ export function reducer(s: State, a: Action): State {
     case "moveEnd":
       if (!s.moveOrigin) return s;
       return { ...s, active: a.cancel ? s.moveOrigin : s.active, moveOrigin: null };
+
+    case "reorder": {
+      const parent = s.tree.parent[a.id];
+      if (!parent) return s;
+      const sibs = visibleKids(s, parent);
+      const from = sibs.indexOf(a.id);
+      const index = Math.max(0, Math.min(sibs.length - 1, a.index));
+      if (from < 0 || index === from) return s;
+      const body = moveLink(s.notes[parent].body, a.id, sibs[index], index > from ? "after" : "before");
+      const notes: Notes = { ...s.notes, [parent]: { ...s.notes[parent], body } };
+      return { ...s, notes, tree: buildTree(notes) };
+    }
 
     case "menu":
       return { ...s, menu: a.menu, active: a.menu ? a.menu.id : s.active, warn: false };

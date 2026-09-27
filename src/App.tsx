@@ -1,5 +1,7 @@
-import { useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
-import { initState, reducer, type Dir } from "./state/store";
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
+import { saveSettings } from "./state/persist";
+import { initState, reducer, visibleKids, type Action, type Dir } from "./state/store";
+import { changesLayout, withTransition } from "./ui/transition";
 import { applyTheme, type Mode } from "./theme/themes";
 import { OverlayView } from "./ui/Overlays";
 import { PanelMenu } from "./ui/PanelMenu";
@@ -25,20 +27,26 @@ function useSystemMode(): Mode {
 }
 
 export default function App() {
-  const [state, dispatch] = useReducer(reducer, undefined, initState);
+  const [state, rawDispatch] = useReducer(reducer, undefined, initState);
   const stateRef = useRef(state);
   stateRef.current = state;
+  // 패널 배치가 바뀌는 동작은 애니메이션으로 감싼다
+  const dispatch = useCallback(
+    (a: Action) => (changesLayout(a, stateRef.current) ? withTransition(() => rawDispatch(a)) : rawDispatch(a)),
+    [],
+  );
 
   const systemMode = useSystemMode();
   const { theme, brightness } = state.settings;
   const mode = brightness === "system" ? systemMode : brightness;
   useLayoutEffect(() => applyTheme(document.documentElement, theme, mode), [theme, mode]);
+  useEffect(() => saveSettings(state.settings), [state.settings]);
 
   useEffect(() => {
     if (!state.toast) return;
     const t = setTimeout(() => dispatch({ type: "toast", message: null }), state.toast.undo ? UNDO_MS : TOAST_MS);
     return () => clearTimeout(t);
-  }, [state.toast]);
+  }, [state.toast, dispatch]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -71,6 +79,15 @@ export default function App() {
         }
         return;
       }
+      // Alt+Shift+↑/↓: 같은 부모 안에서 선택한 패널의 순서를 바꾼다
+      if (e.altKey && e.shiftKey && (dir === "up" || dir === "down")) {
+        e.preventDefault();
+        const parent = s.tree.parent[s.active];
+        if (!parent) return;
+        const index = visibleKids(s, parent).indexOf(s.active) + (dir === "up" ? -1 : 1);
+        dispatch({ type: "reorder", id: s.active, index });
+        return;
+      }
       if (e.altKey && dir) {
         e.preventDefault();
         dispatch({ type: "nav", dir });
@@ -78,7 +95,7 @@ export default function App() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [dispatch]);
 
   return (
     <div className="app">

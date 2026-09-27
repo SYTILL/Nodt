@@ -37,6 +37,30 @@ export function removeLink(body: string, id: NoteId): { body: string; index: num
   return { body: body.slice(0, index) + body.slice(index + removed.length), index, removed };
 }
 
+/**
+ * 본문에서 id 링크를 target 링크의 앞이나 뒤로 옮긴다. 자식 순서를 바꾸는 방법이다.
+ * 링크가 줄에 혼자 있으면 줄째 옮기고(예: 리스트 항목), 한 줄에 링크가 여럿이면 기호만 옮긴다.
+ * 들여쓴 하위 줄은 따라가지 않는다. v0.1-b에서 에디터 블록 단위로 다시 본다.
+ */
+export function moveLink(body: string, id: NoteId, target: NoteId, where: "before" | "after"): string {
+  const tok = (x: NoteId) => `[>](nodt:${x})`;
+  const lines = body.split("\n");
+  const from = lines.findIndex((l) => l.includes(tok(id)));
+  const to = lines.findIndex((l) => l.includes(tok(target)));
+  if (from < 0 || to < 0) return body;
+  if (from !== to && linkTargets(lines[from]).length === 1 && linkTargets(lines[to]).length === 1) {
+    const [line] = lines.splice(from, 1);
+    const t = lines.findIndex((l) => l.includes(tok(target)));
+    lines.splice(where === "before" ? t : t + 1, 0, line);
+    return lines.join("\n");
+  }
+  const cut = removeLink(body, id);
+  if (!cut) return body;
+  const at = cut.body.indexOf(tok(target)) + (where === "after" ? tok(target).length : 0);
+  const ins = where === "before" ? `${tok(id)} ` : ` ${tok(id)}`;
+  return cut.body.slice(0, at) + ins + cut.body.slice(at);
+}
+
 export function buildTree(notes: Notes): Tree {
   const kids: Tree["kids"] = {};
   const parent: Tree["parent"] = {};

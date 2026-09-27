@@ -3,6 +3,7 @@ import type { NoteId } from "../model/notes";
 import type { Action, State } from "../state/store";
 import { IconMinimize, IconRestore, IconX } from "./icons";
 import { NoteBody } from "./NoteBody";
+import { scaleOf } from "./transition";
 
 const MIN_HEIGHT = 96;
 /** 패널 테두리에 섞는 강조색 비율(%) */
@@ -14,9 +15,11 @@ interface Props {
   dispatch: Dispatch<Action>;
   /** 계보 진하기. 0~1 */
   strength: number;
+  /** 상단바를 눌렀을 때. 끌어서 순서를 바꾸는 데 쓴다 */
+  onHeadPointerDown: (e: PointerEvent<HTMLDivElement>) => void;
 }
 
-export function Panel({ id, state, dispatch, strength }: Props) {
+export function Panel({ id, state, dispatch, strength, onHeadPointerDown }: Props) {
   const note = state.notes[id];
   const isRoot = id === state.rootId;
   const isActive = state.active === id;
@@ -43,6 +46,7 @@ export function Panel({ id, state, dispatch, strength }: Props) {
     >
       <div
         className="phead"
+        onPointerDown={onHeadPointerDown}
         onContextMenu={(e) => {
           e.preventDefault();
           dispatch({ type: "menu", menu: { id, x: e.clientX, y: e.clientY } });
@@ -97,7 +101,7 @@ function IconButton(props: {
 
 /** 패널 아래 가장자리를 위아래로 끌어 높이를 조절한다. 끄는 동안은 DOM만 바꾸고, 놓을 때 상태에 넣는다. */
 function HeightGrip({ onCommit }: { onCommit: (height: number) => void }) {
-  const drag = useRef<{ y: number; h: number; panel: HTMLElement; last: number } | null>(null);
+  const drag = useRef<{ y: number; h: number; s: number; panel: HTMLElement; last: number } | null>(null);
 
   function end(e: PointerEvent<HTMLDivElement>) {
     const d = drag.current;
@@ -114,7 +118,7 @@ function HeightGrip({ onCommit }: { onCommit: (height: number) => void }) {
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => {
         const panel = e.currentTarget.parentElement!;
-        drag.current = { y: e.clientY, h: panel.offsetHeight, panel, last: panel.offsetHeight };
+        drag.current = { y: e.clientY, h: panel.offsetHeight, s: scaleOf(panel), panel, last: panel.offsetHeight };
         e.currentTarget.setPointerCapture(e.pointerId);
         e.currentTarget.classList.add("drag");
         e.preventDefault();
@@ -122,7 +126,7 @@ function HeightGrip({ onCommit }: { onCommit: (height: number) => void }) {
       onPointerMove={(e) => {
         const d = drag.current;
         if (!d) return;
-        d.last = Math.max(MIN_HEIGHT, Math.round(d.h + e.clientY - d.y));
+        d.last = Math.max(MIN_HEIGHT, Math.round(d.h + (e.clientY - d.y) / d.s));
         d.panel.style.height = d.last + "px";
       }}
       onPointerUp={end}

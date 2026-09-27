@@ -9,9 +9,11 @@
   --ts: 14.5px;
   /* 프로그램 상단바 높이 */
   --chrome-h: 32px;
+  /* 패널 맨 위 계보 선 두께 */
+  --kin-h: 8px;
   --scrollbar: 8px;
-  /* 기본 패널 높이: 컬럼 높이의 약 1/3. 가로 스크롤바 자리만큼 뺀다 */
-  --ph: calc((100vh - var(--chrome-h) - 4 * var(--gap) - var(--scrollbar)) / 3);
+  /* 기본 패널 높이. 창 크기를 바꿔도 변하지 않는다(기본 창 720px에 세 개가 들어가는 높이) */
+  --ph: 200px;
 
   /* 첫 화면용 기본값(청록 라이트) */
   --bg: #f1f6f5;
@@ -138,19 +140,46 @@ strong {
   outline-offset: -2px;
 }
 
-/* ───── 컬럼 ───── */
+/* ───── 컬럼 (캔버스) ───── */
+/* 스크롤 없이 캔버스처럼 쓴다. .canvas에 이동·확대 transform이 걸린다 (ui/Workspace.tsx) */
 .ws {
+  position: relative;
   flex: 1;
   min-height: 0;
-  display: flex;
+  overflow: hidden;
+}
+.ws.panning {
+  cursor: grabbing;
+  user-select: none;
+}
+.canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+/* 패널을 끌어 순서를 바꾸는 중 (ui/panelDrag.ts) */
+.panel.dragging {
+  z-index: 5;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+/* 끄는 패널이 옆 컬럼 위로 지나갈 때 가려지지 않게 그 컬럼을 위로 올린다 */
+.col:has(.panel.dragging) {
+  z-index: 3;
+}
+.panel.shifting {
+  transition: transform 0.2s ease;
+}
+body.panel-dragging,
+body.panel-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
 }
 .cols {
   position: relative;
-  flex: 1;
-  min-width: 0;
+  width: max-content;
   display: flex;
-  overflow-x: auto;
-  overflow-y: hidden;
+  align-items: flex-start;
   padding: var(--gap);
   transform-origin: 0 0;
   transition: transform 0.22s ease;
@@ -159,15 +188,9 @@ strong {
   position: relative;
   z-index: 1;
   flex: none;
-  height: 100%;
   padding-right: var(--gap);
 }
-/* 선택 링과 패널이동모드 테두리가 잘리지 않게 스크롤 영역을 6px 넓힌다 */
 .col-inner {
-  height: calc(100% + 12px);
-  margin: -6px;
-  padding: 6px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--gap);
@@ -223,7 +246,7 @@ strong {
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
+  height: var(--kin-h);
   z-index: 1;
   background: var(--kin, transparent);
 }
@@ -235,7 +258,10 @@ strong {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 10px 6px 5px 12px;
+  /* 위 여백은 계보 선 두께 + 6px */
+  padding: calc(var(--kin-h) + 6px) 6px 5px 12px;
+  /* 끌 수 있는 영역(상단바)이 어디까지인지 보이게 한다 */
+  border-bottom: 1px solid var(--line);
   background: var(--panel);
   user-select: none;
 }
@@ -288,6 +314,10 @@ strong {
   height: auto;
   min-height: 0;
 }
+/* 최소화하면 상단바가 곧 패널 아래 끝이라 구분선을 뺀다 */
+.panel.min .phead {
+  border-bottom: 0;
+}
 .panel.warn .phead {
   background: var(--danger-soft);
 }
@@ -326,12 +356,21 @@ strong {
   opacity: 0.6;
 }
 
+/* ───── 여닫기 애니메이션 (ui/transition.ts) ───── */
+/* 닫힌 패널이 사라지는 동안 잠깐 올려두는 층. 실제 패널(.col, z-index 1) 아래에 있고 누를 수 없다 */
+#exit-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
 /* ───── 본문 ───── */
 .pbody {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 2px 12px 12px;
+  padding: 8px 12px 12px;
   line-height: 1.65;
 }
 .blk-h {
