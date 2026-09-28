@@ -200,6 +200,33 @@ body.panel-dragging * {
   flex-direction: column;
   gap: var(--gap);
 }
+/* 패널 오른쪽 아래 모서리: 높이와 너비를 한 번에 (Panel.tsx의 CornerGrip) */
+.cgrip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+  z-index: 4;
+}
+.cgrip::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  border-bottom-right-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.cgrip:hover::after,
+.cgrip.drag::after {
+  opacity: 0.6;
+}
 /* 패널 오른쪽 가장자리: 컬럼 너비 조절 (Panel.tsx의 WidthGrip). 같은 컬럼의 패널이 모두 같이 바뀐다 */
 .wgrip {
   position: absolute;

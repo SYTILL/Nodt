@@ -80,6 +80,15 @@ export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidt
         </>
       )}
       <WidthGrip extra={extra} onCommit={onWidthCommit} />
+      {!minimized && (
+        <CornerGrip
+          extra={extra}
+          onCommit={(w, h) => {
+            onWidthCommit(w);
+            dispatch({ type: "panelHeight", id, height: h });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -183,6 +192,68 @@ function WidthGrip({ extra, onCommit }: { extra: number; onCommit: (width: numbe
         const w = d.w + (e.clientX - d.x) / d.s;
         d.last = Math.max(COL_MIN + extra, Math.min(COL_MAX + extra, Math.round(w)));
         d.col.style.width = d.last + "px";
+      }}
+      onPointerUp={end}
+      onPointerCancel={end}
+    />
+  );
+}
+
+/** 패널 오른쪽 아래 모서리를 끌어 높이와 컬럼 너비를 한 번에 조절한다 */
+function CornerGrip({ extra, onCommit }: { extra: number; onCommit: (width: number, height: number) => void }) {
+  const drag = useRef<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    s: number;
+    col: HTMLElement;
+    panel: HTMLElement;
+    lastW: number;
+    lastH: number;
+  } | null>(null);
+
+  function end(e: PointerEvent<HTMLDivElement>) {
+    const d = drag.current;
+    if (!d) return;
+    e.currentTarget.classList.remove("drag");
+    d.col.classList.remove("resizing");
+    drag.current = null;
+    onCommit(d.lastW - extra, d.lastH);
+  }
+
+  return (
+    <div
+      className="cgrip"
+      title="크기 조절"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => {
+        const panel = e.currentTarget.parentElement!;
+        const col = panel.closest<HTMLElement>(".col")!;
+        drag.current = {
+          x: e.clientX,
+          y: e.clientY,
+          w: col.offsetWidth,
+          h: panel.offsetHeight,
+          s: scaleOf(panel),
+          col,
+          panel,
+          lastW: col.offsetWidth,
+          lastH: panel.offsetHeight,
+        };
+        e.currentTarget.setPointerCapture(e.pointerId);
+        e.currentTarget.classList.add("drag");
+        col.classList.add("resizing");
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current;
+        if (!d) return;
+        d.lastW = Math.max(COL_MIN + extra, Math.min(COL_MAX + extra, Math.round(d.w + (e.clientX - d.x) / d.s)));
+        d.lastH = Math.max(MIN_HEIGHT, Math.round(d.h + (e.clientY - d.y) / d.s));
+        d.col.style.width = d.lastW + "px";
+        d.panel.style.height = d.lastH + "px";
       }}
       onPointerUp={end}
       onPointerCancel={end}
