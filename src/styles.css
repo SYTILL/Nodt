@@ -6,7 +6,7 @@
   --radius: 8px;
   --gap: 12px;
   --fs: 13.5px;
-  --ts: 14.5px;
+  --ts: 13.5px;
   /* 프로그램 상단바 높이 */
   --chrome-h: 32px;
   /* 패널 맨 위 계보 선 두께 */
@@ -100,6 +100,11 @@ strong {
   font-weight: 600;
   letter-spacing: 0.02em;
   pointer-events: none;
+}
+/* 프로그램 상단바 아이콘은 조금 크게. 14px에서는 톱니바퀴가 해처럼 보인다 */
+.tbar-acts .ib svg {
+  width: 16px;
+  height: 16px;
 }
 .tbar-acts {
   display: flex;
@@ -195,28 +200,30 @@ body.panel-dragging * {
   flex-direction: column;
   gap: var(--gap);
 }
-.grip {
+/* 패널 오른쪽 가장자리: 컬럼 너비 조절 (Panel.tsx의 WidthGrip). 같은 컬럼의 패널이 모두 같이 바뀐다 */
+.wgrip {
   position: absolute;
   top: 0;
-  right: calc(var(--gap) / 2 - 4px);
-  width: 8px;
-  height: 100%;
+  right: 0;
+  bottom: 0;
+  width: 6px;
   cursor: col-resize;
-  z-index: 2;
+  z-index: 3;
 }
-.grip::after {
+.wgrip::after {
   content: "";
   position: absolute;
-  left: 3px;
-  top: 0;
-  bottom: 0;
+  top: 8px;
+  bottom: 8px;
+  right: 0;
   width: 2px;
+  border-radius: 1px;
   background: var(--accent);
   opacity: 0;
   transition: opacity 0.15s;
 }
-.grip:hover::after,
-.grip.drag::after {
+.wgrip:hover::after,
+.col.resizing .wgrip::after {
   opacity: 0.6;
 }
 
@@ -257,13 +264,16 @@ body.panel-dragging * {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 2px;
-  /* 위 여백은 계보 선 두께 + 6px */
-  padding: calc(var(--kin-h) + 6px) 6px 5px 12px;
+  gap: 0;
+  /* 위 여백은 계보 선 두께 + 2px */
+  padding: calc(var(--kin-h) + 2px) 2px 2px 8px;
   /* 끌 수 있는 영역(상단바)이 어디까지인지 보이게 한다 */
   border-bottom: 1px solid var(--line);
   background: var(--panel);
   user-select: none;
+}
+.phead .ib {
+  width: 22px;
 }
 .ptitle {
   flex: 1;
@@ -430,29 +440,29 @@ body.panel-dragging * {
 .lnk {
   display: inline-grid;
   place-items: center;
-  vertical-align: -3px;
+  vertical-align: -1.5px;
   margin: 0 2px;
   cursor: pointer;
   padding: 0;
-  width: 24px;
+  width: 17px;
   height: 17px;
-  border-radius: 9px;
+  border-radius: 50%;
   border: 1.3px solid var(--accent);
   background: var(--accent);
   color: var(--accent-ink);
 }
 .lnk svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
-/* 닫힘은 채운 알약, 열림은 테두리 알약 */
+/* 닫힘은 채운 원, 열림은 테두리 원 */
 .lnk.open {
   background: none;
   color: var(--accent);
 }
+/* 깨진 링크: 빨간 테두리 원에 x */
 .lnk.broken {
   background: none;
-  border-style: dashed;
   border-color: var(--danger);
   color: var(--danger);
 }
@@ -460,9 +470,6 @@ body.panel-dragging * {
 /* ───── 연결선 ───── */
 .ws[data-rel="lines"] .col {
   padding-right: 34px;
-}
-.ws[data-rel="lines"] .grip {
-  right: 13px;
 }
 .wires {
   position: absolute;

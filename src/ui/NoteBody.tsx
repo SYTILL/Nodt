@@ -1,7 +1,7 @@
 import type { Dispatch, ReactNode } from "react";
 import type { NoteId, Notes } from "../model/notes";
 import type { Action } from "../state/store";
-import { IconArrowLeft, IconArrowRight, IconBroken } from "./icons";
+import { IconChevronLeft, IconChevronRight, IconX } from "./icons";
 
 // v0.1-a 임시 렌더러. 본문 md를 읽기 전용으로 그린다. v0.1-b에서 Tiptap으로 바뀐다.
 
@@ -56,7 +56,7 @@ function LinkChip({ target, ctx }: { target: string; ctx: Ctx }) {
           ctx.dispatch({ type: "toast", message: "깨진 링크 · Ctrl+Enter: 새 노트로 만들기 · Backspace: 삭제" });
         }}
       >
-        <IconBroken />
+        <IconX />
       </button>
     );
   }
@@ -72,8 +72,8 @@ function LinkChip({ target, ctx }: { target: string; ctx: Ctx }) {
         ctx.dispatch({ type: "toggleLink", id: target });
       }}
     >
-      {/* 닫힘 →: 누르면 오른쪽으로 열린다. 열림 ←: 누르면 닫힌다. */}
-      {open ? <IconArrowLeft /> : <IconArrowRight />}
+      {/* 닫힘 >: 누르면 오른쪽으로 열린다. 열림 <: 누르면 닫힌다. */}
+      {open ? <IconChevronLeft /> : <IconChevronRight />}
     </button>
   );
 }

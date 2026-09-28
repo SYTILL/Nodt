@@ -9,8 +9,6 @@ import { RELAYOUT_EVENT, resist, scaleOf } from "./transition";
 
 /** 기본 컬럼 너비. 창 크기를 바꿔도 변하지 않는다(기본 창 1280px의 1/5) */
 const COL_DEFAULT = 256;
-const COL_MIN = 160;
-const COL_MAX = 480;
 /** 연결선을 켜면 컬럼 사이 간격이 12px에서 34px로 넓어진다 */
 const LINES_EXTRA = 22;
 const ZOOM_MIN = 0.3;
@@ -22,8 +20,6 @@ const EDGE = 24;
 const GLIDE = "transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)";
 /** 경계를 넘었다가 튕겨 돌아올 때. 살짝 지나쳤다가 돌아온다 */
 const BOUNCE = "transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)";
-/** 내용 끝 너머로 이만큼(화면 px)까지는 자유롭게 빈 공간이 생기고, 그 이상은 저항이 걸린다 */
-const OUT = 40;
 /** 관성: 한 프레임(약 16.7ms)마다 속도에 곱하는 값. 작을수록 빨리 멈춘다 */
 const FRICTION = 0.9;
 /** 관성 중 경계를 넘었을 때 한 프레임마다 속도에 곱하는 값 */
@@ -62,14 +58,23 @@ export function Workspace({ state, dispatch }: Props) {
     c.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
   }).current;
 
-  // 캔버스를 저항 없이 옮길 수 있는 범위. 스크롤 끝처럼 동작하고 창 크기와 상관없이 여유는 OUT(40px)이다.
-  // 내용이 화면보다 크면 내용 끝 너머로 빈 공간이 40px까지, 작으면 원래 자리에서 ±40px까지.
+  // 캔버스를 저항 없이 옮길 수 있는 범위. 스크롤 끝처럼 동작한다.
+  // 가장자리 패널과 화면 끝 사이가 컬럼 간격(가로 간격)을 넘으면 저항이 걸린다. 세로도 같은 간격을 쓴다.
+  // .cols 안쪽 여백이 12px이므로 기본은 내용 상자가 화면 끝을 넘는 순간이 경계다.
+  // 연결선을 켜면 컬럼 간격이 34px로 넓어지므로 가로세로 모두 그만큼(22px) 더 여유를 준다.
   const bounds = (z: number) => {
     const root = rootRef.current!;
     const cols = canvasRef.current!.firstElementChild as HTMLElement;
-    const range = (view: number, content: number) => ({ lo: Math.min(view - content, 0) - OUT, hi: OUT });
-    const x = range(root.clientWidth, cols.offsetWidth * z);
-    const y = range(root.clientHeight, cols.offsetHeight * z);
+    const range = (view: number, content: number, slack: number) => ({
+      lo: Math.min(view - content, 0) - slack,
+      hi: slack,
+    });
+    // 마지막 컬럼의 오른쪽 여백(다음 컬럼과의 간격 자리)은 내용에서 뺀다
+    const last = cols.lastElementChild as HTMLElement | null;
+    const tail = last ? parseFloat(getComputedStyle(last).paddingRight) || 0 : 0;
+    const slack = (stateRef.current.settings.lines ? LINES_EXTRA : 0) * z;
+    const x = range(root.clientWidth, (cols.offsetWidth - tail) * z, slack);
+    const y = range(root.clientHeight, cols.offsetHeight * z, slack);
     return { minX: x.lo, maxX: x.hi, minY: y.lo, maxY: y.hi };
   };
 
@@ -285,52 +290,17 @@ export function Workspace({ state, dispatch }: Props) {
                       dispatch={dispatch}
                       strength={lineageStrength(dist.get(id))}
                       onHeadPointerDown={(e) => startPanelDrag(e, id, state, dispatch)}
+                      extra={extra}
+                      onWidthCommit={(width) => dispatch({ type: "colWidth", depth: d, width })}
                     />
                   ))}
                 </div>
-                <ColGrip extra={extra} onCommit={(width) => dispatch({ type: "colWidth", depth: d, width })} />
               </div>
             );
           })}
         </div>
       </div>
     </div>
-  );
-}
-
-/** 컬럼 오른쪽 가장자리를 끌어 너비를 조절한다. 끄는 동안은 DOM만 바꾸고, 놓을 때 상태에 넣는다. */
-function ColGrip({ extra, onCommit }: { extra: number; onCommit: (width: number) => void }) {
-  const drag = useRef<{ x: number; w: number; s: number; col: HTMLElement; last: number } | null>(null);
-
-  function end(e: PointerEvent<HTMLDivElement>) {
-    const d = drag.current;
-    if (!d) return;
-    e.currentTarget.classList.remove("drag");
-    drag.current = null;
-    onCommit(d.last - extra);
-  }
-
-  return (
-    <div
-      className="grip"
-      title="너비 조절"
-      onPointerDown={(e) => {
-        const col = e.currentTarget.parentElement!;
-        drag.current = { x: e.clientX, w: col.offsetWidth, s: scaleOf(col), col, last: col.offsetWidth };
-        e.currentTarget.setPointerCapture(e.pointerId);
-        e.currentTarget.classList.add("drag");
-        e.preventDefault();
-      }}
-      onPointerMove={(e) => {
-        const d = drag.current;
-        if (!d) return;
-        const w = d.w + (e.clientX - d.x) / d.s;
-        d.last = Math.max(COL_MIN + extra, Math.min(COL_MAX + extra, Math.round(w)));
-        d.col.style.width = d.last + "px";
-      }}
-      onPointerUp={end}
-      onPointerCancel={end}
-    />
   );
 }
 

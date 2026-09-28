@@ -16,21 +16,17 @@ function Svg({ width, children }: { width: number; children: ReactNode }) {
   );
 }
 
-export const IconArrowRight = () => (
-  <Svg width={1.7}>
-    <path d="M2.5 8h10.5M9.5 4.5 13 8l-3.5 3.5" />
+/** 링크 칩(닫힘): 누르면 오른쪽으로 열린다 */
+export const IconChevronRight = () => (
+  <Svg width={1.8}>
+    <path d="M6.5 4 10.5 8l-4 4" />
   </Svg>
 );
 
-export const IconArrowLeft = () => (
-  <Svg width={1.7}>
-    <path d="M13.5 8H3M6.5 4.5 3 8l3.5 3.5" />
-  </Svg>
-);
-
-export const IconBroken = () => (
-  <Svg width={1.7}>
-    <path d="M2.5 8h3M10 8h3M10.5 5l2.5 3-2.5 3M6.5 11l2.5-6" />
+/** 링크 칩(열림): 누르면 닫힌다 */
+export const IconChevronLeft = () => (
+  <Svg width={1.8}>
+    <path d="M9.5 4 5.5 8l4 4" />
   </Svg>
 );
 
@@ -52,11 +48,21 @@ export const IconRestore = () => (
   </Svg>
 );
 
+// 톱니가 몸통에 붙은 톱니바퀴. 떨어진 막대로 그리면 작은 크기에서 해처럼 보인다.
+// 모양은 Lucide 아이콘(ISC 라이선스)의 settings를 따랐다.
 export const IconGear = () => (
-  <Svg width={1.5}>
-    <circle cx="8" cy="8" r="2.3" />
-    <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" />
-  </Svg>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.9}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
 );
 
 export const IconHelp = () => (
