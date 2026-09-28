@@ -822,6 +822,39 @@ kbd {
   color: var(--muted);
   font-size: 12px;
 }
+.opt .col-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.opt .folder {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.opt .folder .path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.opt .note {
+  color: var(--muted);
+  font-size: 12px;
+}
+.sheet.wide {
+  width: 560px;
+}
+.help-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.help-group .lbl {
+  color: var(--muted);
+  font-size: 12px;
+}
 .opt .row {
   display: flex;
   flex-wrap: wrap;

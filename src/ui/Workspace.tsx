@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type Dispatch, type PointerEvent } from "react";
-import { columns, lineage, lineageStrength, type Action, type State } from "../state/store";
+import { columns, lineage, lineageStrength, type Action, type State, type View } from "../state/store";
 import { Panel } from "./Panel";
 import { startPanelDrag } from "./panelDrag";
 import { RELAYOUT_EVENT, resist, scaleOf } from "./transition";
@@ -29,8 +29,6 @@ const MIN_SPEED = 0.02;
 /** 놓기 직전 이 시간(ms) 동안의 움직임으로 속도를 잰다 */
 const VELOCITY_WINDOW = 80;
 
-type View = { x: number; y: number; z: number };
-
 interface Props {
   state: State;
   dispatch: Dispatch<Action>;
@@ -49,14 +47,19 @@ export function Workspace({ state, dispatch }: Props) {
 
   // ───── 화면 이동과 확대 ─────
   // 매 움직임마다 React를 다시 그리지 않도록 캔버스 transform을 직접 바꾼다.
-  const view = useRef<View>({ x: 0, y: 0, z: 1 });
+  // 지난번 화면 위치로 시작하고, 움직임이 멈추면 잠시 뒤 상태에 넣는다(저장용)
+  const view = useRef<View>(state.view);
+  const commitTimer = useRef(0);
   const applyView = useRef((transition: string | false = false) => {
     const c = canvasRef.current;
     if (!c) return;
     const { x, y, z } = view.current;
     c.style.transition = transition || "";
     c.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
+    clearTimeout(commitTimer.current);
+    commitTimer.current = window.setTimeout(() => dispatch({ type: "view", view: { ...view.current } }), 600);
   }).current;
+  useLayoutEffect(() => applyView(), [applyView]);
 
   // 캔버스를 저항 없이 옮길 수 있는 범위. 스크롤 끝처럼 동작한다.
   // 가장자리 패널과 화면 끝 사이가 컬럼 간격(가로 간격)을 넘으면 저항이 걸린다. 세로도 같은 간격을 쓴다.

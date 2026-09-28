@@ -136,9 +136,9 @@ export function serializeInline(nodes: JSONContent[] | undefined): string {
   return s;
 }
 
-/** 문단 첫 글자가 목록이나 부제목 기호로 읽히지 않게 막는다 */
+/** 문단이 목록(- , * , + )이나 부제목(#)으로 읽히지 않게 막는다. **굵게**로 시작하는 문단은 그대로 둔다. */
 function guardLineStart(s: string): string {
-  return /^[-*+#]/.test(s) ? "\\" + s : s;
+  return /^([-*+](?: |$)|#)/.test(s) ? "\\" + s : s;
 }
 
 function isEmptyParagraph(b: JSONContent): boolean {

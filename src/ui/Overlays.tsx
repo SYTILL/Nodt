@@ -1,32 +1,71 @@
-import { useEffect, useState, type Dispatch, type ReactNode } from "react";
-import { defaultDataFolder } from "../platform";
+import { type Dispatch, type ReactNode } from "react";
+import { HOTKEY_LABEL } from "../platform";
 import type { Action, Overlay, Settings } from "../state/store";
 import { THEMES } from "../theme/themes";
 import { IconX } from "./icons";
+import type { Session } from "./session";
 
-const HELP_ROWS: [string, string][] = [
-  ["Ctrl+Enter", "링크 열기/닫기 (커서가 링크 바로 뒤)"],
-  ["Ctrl+.", "새 노트 링크 만들기"],
-  ["/", "명령 메뉴"],
-  ["Tab / Enter", "제목에서 본문으로"],
-  ["Esc", "선택한 패널 닫기"],
-  ["Alt+방향키", "패널 이동"],
-  ["Alt+Shift+↑ / Alt+Shift+↓", "같은 부모 안에서 패널 순서 바꾸기"],
-  ["Ctrl+Tab", "패널이동모드"],
-  ["빈 곳 끌기 / 휠", "화면 이동 / 확대·축소"],
-  ["Ctrl+0", "화면 원래 위치, 100%로"],
-  ["Ctrl+X → Ctrl+V", "링크 이동 (부모 변경)"],
-  ["Ctrl+V", "복사한 링크를 깨진 링크로"],
-  ["Ctrl+Shift+V", "하위 노트까지 복사"],
+// 단축키 도움말 (스펙 5장). [키, 설명] 묶음별
+const HELP: [string, [string, string][]][] = [
+  [
+    "노트와 링크",
+    [
+      ["Ctrl+.", "새 노트 링크 만들기"],
+      ["/", "명령 메뉴 (줄 맨 앞이나 공백 뒤)"],
+      ["Ctrl+Enter", "커서 바로 앞 링크 열기/닫기 · 깨진 링크면 새 노트로"],
+      ["Tab / Enter", "제목에서 본문으로"],
+      ["↑", "본문 첫 줄에서 제목으로"],
+      ["Tab / Shift+Tab", "목록 들여쓰기 / 내어쓰기"],
+      ["Backspace", "깨진 링크 바로 뒤에서 지우기"],
+    ],
+  ],
+  [
+    "패널",
+    [
+      ["Esc", "선택한 패널 닫기 (메뉴·모드가 떠 있으면 그것부터)"],
+      ["Alt+← / Alt+→", "부모 / 첫 번째로 열린 자식 패널로"],
+      ["Alt+↑ / Alt+↓", "같은 컬럼의 위 / 아래 패널로"],
+      ["Alt+Shift+↑ / Alt+Shift+↓", "같은 부모 안에서 순서 바꾸기"],
+      ["Ctrl+Tab", "패널이동모드 (방향키 이동, Enter 선택, Esc 취소)"],
+    ],
+  ],
+  [
+    "화면",
+    [
+      ["빈 곳 끌기", "화면 옮기기"],
+      ["휠", "확대 / 축소"],
+      ["Ctrl+0", "원래 위치, 100%로"],
+    ],
+  ],
+  [
+    "복사와 이동",
+    [
+      ["Ctrl+C → Ctrl+V", "링크는 깨진 링크로 붙음"],
+      ["Ctrl+C → Ctrl+Shift+V", "하위 노트까지 복제해서 붙이기"],
+      ["Ctrl+X → Ctrl+V", "옮기기 (부모 바꾸기) · Esc로 취소"],
+      ["Ctrl+Z", "삭제 알림이 떠 있으면 삭제 되돌리기"],
+    ],
+  ],
+  [
+    "서식",
+    [
+      ["Ctrl+B", "굵게"],
+      ["Ctrl+Shift+S", "취소선"],
+      ["## + 공백", "부제목"],
+      ["- + 공백", "글머리 목록"],
+      ["[ ] + 공백", "체크 목록"],
+    ],
+  ],
 ];
 
 interface Props {
   overlay: Overlay;
   settings: Settings;
   dispatch: Dispatch<Action>;
+  session: Session;
 }
 
-export function OverlayView({ overlay, settings, dispatch }: Props) {
+export function OverlayView({ overlay, settings, dispatch, session }: Props) {
   const close = () => dispatch({ type: "overlay", overlay: null });
   return (
     <div
@@ -36,27 +75,34 @@ export function OverlayView({ overlay, settings, dispatch }: Props) {
       }}
     >
       {overlay.kind === "help" && (
-        <Sheet title="단축키" onClose={close}>
-          <table>
-            <tbody>
-              {HELP_ROWS.map(([keys, desc]) => (
-                <tr key={keys}>
-                  <td>
-                    {keys.split(" / ").map((k, i) => (
-                      <span key={k}>
-                        {i > 0 && " / "}
-                        <kbd>{k}</kbd>
-                      </span>
-                    ))}
-                  </td>
-                  <td>{desc}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <Sheet title="단축키" onClose={close} wide>
+          {HELP.map(([group, rows]) => (
+            <div key={group} className="help-group">
+              <span className="lbl">{group}</span>
+              <table>
+                <tbody>
+                  {rows.map(([keys, desc]) => (
+                    <tr key={keys}>
+                      <td>
+                        {keys.split(" / ").map((k, i) => (
+                          <span key={k}>
+                            {i > 0 && " / "}
+                            <kbd>{k}</kbd>
+                          </span>
+                        ))}
+                      </td>
+                      <td>{desc}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
         </Sheet>
       )}
-      {overlay.kind === "settings" && <SettingsSheet settings={settings} dispatch={dispatch} onClose={close} />}
+      {overlay.kind === "settings" && (
+        <SettingsSheet settings={settings} dispatch={dispatch} onClose={close} session={session} />
+      )}
       {overlay.kind === "confirm" && (
         <div className="sheet" role="alertdialog" aria-label={overlay.message}>
           <p className="msg">{overlay.message}</p>
@@ -82,9 +128,9 @@ export function OverlayView({ overlay, settings, dispatch }: Props) {
   );
 }
 
-function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+function Sheet({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   return (
-    <div className="sheet" role="dialog" aria-label={title}>
+    <div className={"sheet" + (wide ? " wide" : "")} role="dialog" aria-label={title}>
       <h4>
         {title}
         <button type="button" className="ib" title="닫기" aria-label="닫기" autoFocus onClick={onClose}>
@@ -96,84 +142,135 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
+function Radios<T extends string>({
+  name,
+  value,
+  options,
+  onChange,
+  column,
+}: {
+  name: string;
+  value: T;
+  options: [T, ReactNode][];
+  onChange: (v: T) => void;
+  column?: boolean;
+}) {
+  return (
+    <div className={column ? "col-opts" : "row"}>
+      {options.map(([v, label]) => (
+        <label key={v}>
+          <input type="radio" name={name} checked={value === v} onChange={() => onChange(v)} />
+          {label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function SettingsSheet({
   settings,
   dispatch,
   onClose,
+  session,
 }: {
   settings: Settings;
   dispatch: Dispatch<Action>;
   onClose: () => void;
+  session: Session;
 }) {
-  const [folder, setFolder] = useState("");
-  useEffect(() => {
-    void defaultDataFolder().then(setFolder);
-  }, []);
   const set = (patch: Partial<Settings>) => dispatch({ type: "settings", patch });
+
+  async function pickFolder() {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const dir = await open({ directory: true, title: "데이터 폴더 고르기", defaultPath: session.dataDir });
+    if (typeof dir === "string" && dir !== session.dataDir) await session.changeDataDir?.(dir);
+  }
 
   return (
     <Sheet title="설정" onClose={onClose}>
       <div className="opt">
         <span className="lbl">패널 열기 방식</span>
-        <label>
-          <input type="radio" name="openMode" checked={settings.openMode === "add"} onChange={() => set({ openMode: "add" })} />
-          추가: 형제 노트를 여러 개 열어둠
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="openMode"
-            checked={settings.openMode === "replace"}
-            onChange={() => set({ openMode: "replace" })}
-          />
-          교체: 같은 부모의 다른 노트는 닫음
-        </label>
+        <Radios
+          name="openMode"
+          column
+          value={settings.openMode}
+          onChange={(openMode) => set({ openMode })}
+          options={[
+            ["add", "추가: 형제 노트를 여러 개 열어둠"],
+            ["replace", "교체: 같은 부모의 다른 노트는 닫음"],
+          ]}
+        />
       </div>
       <div className="opt">
         <span className="lbl">연결선</span>
-        <div className="row">
-          <label>
-            <input type="radio" name="lines" checked={!settings.lines} onChange={() => set({ lines: false })} />
-            끄기
-          </label>
-          <label>
-            <input type="radio" name="lines" checked={settings.lines} onChange={() => set({ lines: true })} />
-            켜기
-          </label>
-        </div>
+        <Radios
+          name="lines"
+          value={settings.lines ? "on" : "off"}
+          onChange={(v) => set({ lines: v === "on" })}
+          options={[
+            ["off", "끄기"],
+            ["on", "켜기"],
+          ]}
+        />
       </div>
       <div className="opt">
         <span className="lbl">테마</span>
-        <div className="row">
-          {THEMES.map((t) => (
-            <label key={t.id}>
-              <input type="radio" name="theme" checked={settings.theme === t.id} onChange={() => set({ theme: t.id })} />
+        <Radios
+          name="theme"
+          value={settings.theme}
+          onChange={(theme) => set({ theme })}
+          options={THEMES.map((t) => [
+            t.id,
+            <>
               <span className="swatch" style={{ background: t.light.accent }} />
               {t.name}
-            </label>
-          ))}
-        </div>
+            </>,
+          ])}
+        />
       </div>
       <div className="opt">
         <span className="lbl">밝기</span>
-        <div className="row">
-          {(
+        <Radios
+          name="brightness"
+          value={settings.brightness}
+          onChange={(brightness) => set({ brightness })}
+          options={[
+            ["light", "라이트"],
+            ["dark", "다크"],
+            ["system", "시스템 설정 따르기"],
+          ]}
+        />
+      </div>
+      <div className="opt">
+        <span className="lbl">창 모드</span>
+        <Radios
+          name="windowMode"
+          column
+          value={settings.windowMode}
+          onChange={(windowMode) => set({ windowMode })}
+          options={[
+            ["normal", "일반 창: 다른 프로그램을 누르면 그 뒤로 가려짐"],
+            ["onTop", "항상 위"],
             [
-              ["light", "라이트"],
-              ["dark", "다크"],
-              ["system", "시스템 설정 따르기"],
-            ] as const
-          ).map(([v, label]) => (
-            <label key={v}>
-              <input type="radio" name="brightness" checked={settings.brightness === v} onChange={() => set({ brightness: v })} />
-              {label}
-            </label>
-          ))}
-        </div>
+              "hotkey",
+              <>
+                단축키로 불러오기·숨기기 <kbd>{HOTKEY_LABEL}</kbd>
+              </>,
+            ],
+          ]}
+        />
       </div>
       <div className="opt">
         <span className="lbl">데이터 폴더</span>
-        <span className="path">{folder}</span>
+        <div className="folder">
+          <span className="path">{session.dataDir}</span>
+          {session.changeDataDir && (
+            <button type="button" className="sbtn" onClick={() => void pickFolder()}>
+              바꾸기
+            </button>
+          )}
+        </div>
+        <span className="note">백업은 이 폴더의 backups에 5분·2시간·1일·1주·1달 단위로 남아요.</span>
       </div>
     </Sheet>
   );

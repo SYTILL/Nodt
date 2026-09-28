@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { cancelCut, pendingCut } from "./editor/clipboard";
 import { slashStore } from "./editor/slash";
+import { applyWindowMode } from "./platform";
 import { reducer, visibleKids, type Action, type Dir, type State } from "./state/store";
 import { applyTheme, type Mode } from "./theme/themes";
 import { AppContext, type AppApi } from "./ui/appContext";
 import { OverlayView } from "./ui/Overlays";
 import { PanelMenu } from "./ui/PanelMenu";
+import { TOAST_EVENT, type Session } from "./ui/session";
 import { SlashMenu } from "./ui/SlashMenu";
 import { TitleBar } from "./ui/TitleBar";
 import { changesLayout, withTransition } from "./ui/transition";
@@ -33,9 +35,10 @@ interface Props {
   initial: State;
   /** 상태가 바뀔 때마다(저장용) */
   onState?: (s: State) => void;
+  session: Session;
 }
 
-export default function App({ initial, onState }: Props) {
+export default function App({ initial, onState, session }: Props) {
   const [state, raw] = useReducer(reducer, initial);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -49,10 +52,19 @@ export default function App({ initial, onState }: Props) {
 
   useEffect(() => onState?.(state), [state, onState]);
 
+  // React 밖(저장 실패 등)에서 온 알림
+  useEffect(() => {
+    const on = (e: Event) => dispatch({ type: "toast", message: String((e as CustomEvent).detail) });
+    window.addEventListener(TOAST_EVENT, on);
+    return () => window.removeEventListener(TOAST_EVENT, on);
+  }, [dispatch]);
+
   const systemMode = useSystemMode();
   const { theme, brightness } = state.settings;
   const mode = brightness === "system" ? systemMode : brightness;
   useLayoutEffect(() => applyTheme(document.documentElement, theme, mode), [theme, mode]);
+  const { windowMode } = state.settings;
+  useEffect(() => void applyWindowMode(windowMode), [windowMode]);
 
   useEffect(() => {
     if (!state.toast) return;
@@ -142,7 +154,7 @@ export default function App({ initial, onState }: Props) {
         )}
         <SlashMenu />
         {state.menu && <PanelMenu menu={state.menu} state={state} dispatch={dispatch} />}
-        {state.overlay && <OverlayView overlay={state.overlay} settings={state.settings} dispatch={dispatch} />}
+        {state.overlay && <OverlayView overlay={state.overlay} settings={state.settings} dispatch={dispatch} session={session} />}
       </div>
     </AppContext.Provider>
   );
