@@ -1,8 +1,10 @@
 import { parseMarkdown } from "./markdown";
 import { BROKEN_TARGET, newNote, type NoteId, type Notes } from "./notes";
 
-// 처음 켤 때(또는 초기화했을 때) 보여주는 사용법 노트.
-// 최상위 노트 아래에 파트별 하위 노트가 있고, "시작하기"만 하위까지 펼쳐 두고 나머지 파트는 최소화해 둔다.
+// 처음 켤 때(또는 "사용법 노트로" 초기화했을 때) 보여주는 노트.
+// 최상위 노트는 셋이다: 사용법(파트별 하위 노트), 실제로 쓰는 모습을 보여주는 예제 둘.
+// 처음에는 "시작하기"(와 연습장)를 펼치고 "링크와 새 노트"는 최소화해서 열어 둔다. 나머지 파트는 닫혀 있다.
+// 예제는 최소화해 두고, 복원하면 하위 노트가 몇 단계 펼쳐진 모습이 보이게 열림 상태를 기억시켜 둔다.
 // {{key}}는 해당 노트로 가는 링크, {{x}}는 깨진 링크 예시다.
 
 const TUTORIAL: Record<string, { title: string; body: string }> = {
@@ -19,6 +21,7 @@ const TUTORIAL: Record<string, { title: string; body: string }> = {
       "- 화면 옮기기 {{canvas}}",
       "- 복사와 이동 {{clip}}",
       "- 저장과 설정 {{save}}",
+      "- 서식 {{format}}",
     ].join("\n"),
   },
   start: {
@@ -26,13 +29,8 @@ const TUTORIAL: Record<string, { title: string; body: string }> = {
     body: [
       "- 이 노트들은 마음대로 고치거나 지워도 돼요.",
       "- 설정 왼쪽의 초기화 버튼으로 언제든 이 상태로 돌아올 수 있어요.",
-      "- 제목은 패널 맨 위에서 바로 고쳐요. 제목에서 Enter를 누르면 본문으로 내려가요.",
-      "",
-      "## 서식",
-      "- **굵게**는 Ctrl+B, ~~취소선~~은 Ctrl+Shift+S",
-      "- 줄 맨 앞에 ## 과 공백 → 부제목",
-      "- 줄 맨 앞에 - 와 공백 → 글머리 목록, [ ] 와 공백 → 체크 목록",
-      "- 목록에서 Tab / Shift+Tab 으로 들여쓰기 / 내어쓰기",
+      "- 제목은 두 번 눌러 고쳐요. 제목에서 Enter를 누르면 본문으로 내려가요.",
+      "- 아래 예제 노트들은 — 로 접혀 있어요. □ 를 누르면 펼쳐져요.",
       "",
       "직접 써 보기 {{practice}}",
     ].join("\n"),
@@ -78,6 +76,15 @@ const TUTORIAL: Record<string, { title: string; body: string }> = {
       "- Ctrl+X → Ctrl+V: 노트를 다른 곳으로 옮겨요. 잘라낸 곳은 붙이기 전까지 박스로 표시돼요.",
     ].join("\n"),
   },
+  format: {
+    title: "서식",
+    body: [
+      "- **굵게**는 Ctrl+B, ~~취소선~~은 Ctrl+Shift+S",
+      "- 줄 맨 앞에 ## 과 공백 → 부제목",
+      "- 줄 맨 앞에 - 와 공백 → 글머리 목록, [ ] 와 공백 → 체크 목록",
+      "- 목록에서 Tab / Shift+Tab 으로 들여쓰기 / 내어쓰기",
+    ].join("\n"),
+  },
   save: {
     title: "저장과 설정",
     body: [
@@ -87,11 +94,73 @@ const TUTORIAL: Record<string, { title: string; body: string }> = {
       "- 모든 단축키는 ? 에 있어요.",
     ].join("\n"),
   },
+
+  // ───── 예제 1: 이번 주 할 일 ─────
+  ex1: {
+    title: "예제 1: 이번 주 할 일",
+    body: [
+      "할 일을 적다가, 길어지는 일은 하위 노트로 빼요.",
+      "",
+      "## 이번 주",
+      "- [ ] 장보기 {{ex1shop}}",
+      "- [ ] 발표 자료 만들기 {{ex1talk}}",
+      "- [x] 병원 예약",
+      "- [ ] 방 정리 {{ex1room}}",
+    ].join("\n"),
+  },
+  ex1shop: {
+    title: "장보기",
+    body: ["- [x] 우유", "- [ ] 계란", "- [ ] 두부", "- [ ] 휴지"].join("\n"),
+  },
+  ex1talk: {
+    title: "발표 자료 만들기",
+    body: ["- [x] 목차 정하기", "- [ ] 자료 조사 {{ex1research}}", "- [ ] 슬라이드 만들기", "- [ ] 리허설"].join("\n"),
+  },
+  ex1research: {
+    title: "자료 조사",
+    body: ["참고할 것", "", "- 지난번 발표 자료", "- 관련 기사 2~3개", "", "**금요일까지**"].join("\n"),
+  },
+  ex1room: {
+    title: "방 정리",
+    body: ["- 옷장", "- 책상", "- ~~창문 닦기~~ 다음 주에"].join("\n"),
+  },
+
+  // ───── 예제 2: 독서 기록 ─────
+  ex2: {
+    title: "예제 2: 독서 기록",
+    body: [
+      "책마다 하위 노트를 만들고, 남기고 싶은 부분은 또 하위 노트로 나눠요.",
+      "",
+      "## 올해 읽은 책",
+      "- 어린 왕자 {{ex2prince}}",
+      "- 데미안 {{ex2demian}}",
+      "",
+      "## 다음에",
+      "- 읽고 싶은 책 {{ex2wish}}",
+    ].join("\n"),
+  },
+  ex2prince: {
+    title: "어린 왕자",
+    body: ["- 다 읽음: 3월", "- 한 줄 평: 다시 읽을 때마다 다르게 읽힌다", "", "마음에 남은 문장 {{ex2quote}}"].join("\n"),
+  },
+  ex2quote: {
+    title: "마음에 남은 문장",
+    body: ["- 가장 중요한 것은 눈에 보이지 않아.", "- 네 장미를 그토록 소중하게 만든 건 네가 장미에게 들인 시간이야."].join("\n"),
+  },
+  ex2demian: {
+    title: "데미안",
+    body: ["- 읽는 중 (120쪽)", "- 싱클레어가 데미안을 처음 만나는 장면까지"].join("\n"),
+  },
+  ex2wish: {
+    title: "읽고 싶은 책",
+    body: ["- [ ] 사피엔스", "- [ ] 코스모스", "- [ ] 참을 수 없는 존재의 가벼움"].join("\n"),
+  },
 };
 
 export interface Tutorial {
   notes: Notes;
-  rootId: NoteId;
+  /** 최상위 노트들, 위에서부터 */
+  roots: NoteId[];
   open: Set<NoteId>;
   minimized: Set<NoteId>;
   active: NoteId;
@@ -106,15 +175,17 @@ export function createTutorial(): Tutorial {
     const md = body.replace(/\{\{(\w+)\}\}/g, (_, k: string) => `[>](nodt:${ids[k] ?? BROKEN_TARGET})`);
     notes[ids[key]] = newNote(ids[key], title, parseMarkdown(md));
   }
-  const parts = ["start", "links", "panels", "canvas", "clip", "save"];
+  const keys = (list: string[]) => list.map((k) => ids[k]);
   return {
     notes,
-    rootId: ids.root,
-    // 파트는 모두 열어 두되 "시작하기"만 펼치고 나머지는 제목줄만
-    open: new Set([...parts, "practice"].map((k) => ids[k])),
-    minimized: new Set(parts.filter((k) => k !== "start").map((k) => ids[k])),
+    roots: keys(["root", "ex1", "ex2"]),
+    // 예제는 복원했을 때 발표 자료 → 자료 조사, 어린 왕자 → 문장까지 펼쳐져 보이게 열림 상태를 기억해 둔다
+    open: new Set(
+      keys(["start", "practice", "links", "ex1shop", "ex1talk", "ex1research", "ex2prince", "ex2quote", "ex2wish"]),
+    ),
+    minimized: new Set(keys(["links", "ex1", "ex2"])),
     active: ids.start,
-    // 처음 보는 두 패널은 내용이 다 보이게 기본 높이보다 크게
-    panelHeights: { [ids.root]: 330, [ids.start]: 400 },
+    // 처음 보는 패널은 내용이 다 보이게 기본 높이보다 크게
+    panelHeights: { [ids.root]: 360, [ids.start]: 272, [ids.ex1]: 250, [ids.ex2]: 300 },
   };
 }

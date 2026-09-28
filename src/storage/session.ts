@@ -61,7 +61,7 @@ export function normalizeSettings(raw: unknown): Settings {
 /** 사용법 노트로 된 처음 상태(처음 켤 때, 초기화할 때). 설정은 넘겨받은 그대로 둔다. */
 export function freshState(settings: Settings): State {
   const t = createTutorial();
-  return makeState(t.notes, [t.rootId], {
+  return makeState(t.notes, t.roots, {
     settings,
     open: t.open,
     minimized: t.minimized,
