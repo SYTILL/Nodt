@@ -77,7 +77,23 @@ function exitLayer(): HTMLElement {
   return layer;
 }
 
+/** 애니메이션 안에서 또 애니메이션을 부르면(예: 링크를 넣는 에디터 명령이 다시 dispatch) 바깥 것 하나로 묶는다 */
+let running = false;
+
 export function withTransition(update: () => void) {
+  if (running) {
+    update();
+    return;
+  }
+  running = true;
+  try {
+    runTransition(update);
+  } finally {
+    running = false;
+  }
+}
+
+function runTransition(update: () => void) {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
     clearDragOffsets();
     update();

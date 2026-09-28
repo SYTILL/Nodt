@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
-import { saveSettings } from "./state/persist";
-import { initState, reducer, visibleKids, type Action, type Dir } from "./state/store";
-import { changesLayout, withTransition } from "./ui/transition";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
+import { cancelCut, pendingCut } from "./editor/clipboard";
+import { slashStore } from "./editor/slash";
+import { reducer, visibleKids, type Action, type Dir, type State } from "./state/store";
 import { applyTheme, type Mode } from "./theme/themes";
+import { AppContext, type AppApi } from "./ui/appContext";
 import { OverlayView } from "./ui/Overlays";
 import { PanelMenu } from "./ui/PanelMenu";
+import { SlashMenu } from "./ui/SlashMenu";
 import { TitleBar } from "./ui/TitleBar";
+import { changesLayout, withTransition } from "./ui/transition";
 import { Workspace } from "./ui/Workspace";
 
 const TOAST_MS = 2600;
@@ -26,21 +29,30 @@ function useSystemMode(): Mode {
   return dark ? "dark" : "light";
 }
 
-export default function App() {
-  const [state, rawDispatch] = useReducer(reducer, undefined, initState);
+interface Props {
+  initial: State;
+  /** 상태가 바뀔 때마다(저장용) */
+  onState?: (s: State) => void;
+}
+
+export default function App({ initial, onState }: Props) {
+  const [state, raw] = useReducer(reducer, initial);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const animate = useCallback((fn: () => void) => withTransition(fn), []);
   // 패널 배치가 바뀌는 동작은 애니메이션으로 감싼다
   const dispatch = useCallback(
-    (a: Action) => (changesLayout(a, stateRef.current) ? withTransition(() => rawDispatch(a)) : rawDispatch(a)),
+    (a: Action) => (changesLayout(a, stateRef.current) ? withTransition(() => raw(a)) : raw(a)),
     [],
   );
+  const api = useMemo<AppApi>(() => ({ state, dispatch, raw, animate }), [state, dispatch, animate]);
+
+  useEffect(() => onState?.(state), [state, onState]);
 
   const systemMode = useSystemMode();
   const { theme, brightness } = state.settings;
   const mode = brightness === "system" ? systemMode : brightness;
   useLayoutEffect(() => applyTheme(document.documentElement, theme, mode), [theme, mode]);
-  useEffect(() => saveSettings(state.settings), [state.settings]);
 
   useEffect(() => {
     if (!state.toast) return;
@@ -49,71 +61,89 @@ export default function App() {
   }, [state.toast, dispatch]);
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
+    // 앱 전체 단축키. 에디터보다 먼저 받아야 하는 키는 capture 단계에서 처리한다.
+    function onKeyCapture(e: KeyboardEvent) {
       const s = stateRef.current;
-      if (e.key === "Escape") {
+      const stop = () => {
         e.preventDefault();
-        dispatch({ type: "escape" });
+        e.stopPropagation();
+      };
+      // Esc: 슬래시 메뉴는 에디터가 닫는다. 그 밖에는 잘라내기 박스 → 메뉴·오버레이·모드 → 패널 순으로 닫는다.
+      // (ProseMirror는 Esc를 늘 처리한 것으로 표시하므로 bubble 단계에서는 누가 썼는지 알 수 없다)
+      if (e.key === "Escape") {
+        if (slashStore.get() || e.isComposing) return;
+        stop();
+        if (pendingCut() && !s.overlay && !s.menu) cancelCut();
+        else dispatch({ type: "escape" });
         return;
       }
       if (s.overlay || s.menu) return;
       // 되돌리기 알림이 떠 있는 동안 Ctrl+Z는 삭제를 되돌린다
-      if (e.ctrlKey && e.key.toLowerCase() === "z" && s.deleted) {
-        e.preventDefault();
+      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === "z" && s.deleted) {
+        stop();
         dispatch({ type: "undoDelete" });
         return;
       }
       if (e.ctrlKey && e.key === "Tab") {
-        e.preventDefault();
-        dispatch(s.moveOrigin ? { type: "moveEnd", cancel: false } : { type: "moveStart" });
+        stop();
+        if (s.moveOrigin) {
+          dispatch({ type: "moveEnd", cancel: false });
+        } else {
+          // 방향키가 글을 움직이지 않게 에디터에서 초점을 뺀다
+          (document.activeElement as HTMLElement | null)?.blur();
+          dispatch({ type: "moveStart" });
+        }
         return;
       }
       const dir = ARROWS[e.key];
       if (s.moveOrigin) {
         if (dir) {
-          e.preventDefault();
+          stop();
           dispatch({ type: "nav", dir });
         } else if (e.key === "Enter") {
-          e.preventDefault();
+          stop();
           dispatch({ type: "moveEnd", cancel: false });
         }
         return;
       }
       // Alt+Shift+↑/↓: 같은 부모 안에서 선택한 패널의 순서를 바꾼다
       if (e.altKey && e.shiftKey && (dir === "up" || dir === "down")) {
-        e.preventDefault();
+        stop();
         const parent = s.tree.parent[s.active];
         if (!parent) return;
         const index = visibleKids(s, parent).indexOf(s.active) + (dir === "up" ? -1 : 1);
         dispatch({ type: "reorder", id: s.active, index });
         return;
       }
-      if (e.altKey && dir) {
-        e.preventDefault();
+      if (e.altKey && !e.ctrlKey && dir) {
+        stop();
         dispatch({ type: "nav", dir });
       }
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKeyCapture, true);
+    return () => window.removeEventListener("keydown", onKeyCapture, true);
   }, [dispatch]);
 
   return (
-    <div className="app">
-      <TitleBar warn={state.warn} dispatch={dispatch} />
-      <Workspace state={state} dispatch={dispatch} />
-      {state.moveOrigin && <div className="movebar">패널이동모드 · 방향키로 이동 · Enter 선택 · Esc 취소</div>}
-      {state.toast && (
-        <div className="toast" role="status" key={state.toast.seq}>
-          {state.toast.message}
-          {state.toast.undo && (
-            <button type="button" className="toast-act" onClick={() => dispatch({ type: "undoDelete" })}>
-              되돌리기 <span className="hint">Ctrl+Z</span>
-            </button>
-          )}
-        </div>
-      )}
-      {state.menu && <PanelMenu menu={state.menu} state={state} dispatch={dispatch} />}
-      {state.overlay && <OverlayView overlay={state.overlay} settings={state.settings} dispatch={dispatch} />}
-    </div>
+    <AppContext.Provider value={api}>
+      <div className="app">
+        <TitleBar warn={state.warn} dispatch={dispatch} />
+        <Workspace state={state} dispatch={dispatch} />
+        {state.moveOrigin && <div className="movebar">패널이동모드 · 방향키로 이동 · Enter 선택 · Esc 취소</div>}
+        {state.toast && (
+          <div className="toast" role="status" key={state.toast.seq}>
+            {state.toast.message}
+            {state.toast.undo && (
+              <button type="button" className="toast-act" onClick={() => dispatch({ type: "undoDelete" })}>
+                되돌리기 <span className="hint">Ctrl+Z</span>
+              </button>
+            )}
+          </div>
+        )}
+        <SlashMenu />
+        {state.menu && <PanelMenu menu={state.menu} state={state} dispatch={dispatch} />}
+        {state.overlay && <OverlayView overlay={state.overlay} settings={state.settings} dispatch={dispatch} />}
+      </div>
+    </AppContext.Provider>
   );
 }

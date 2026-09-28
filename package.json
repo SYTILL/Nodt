@@ -12,6 +12,13 @@
   "dependencies": {
     "@fontsource/ibm-plex-sans-kr": "^5.3.0",
     "@tauri-apps/api": "^2",
+    "@tiptap/core": "3.31",
+    "@tiptap/extension-list": "3.31",
+    "@tiptap/extensions": "3.31",
+    "@tiptap/pm": "3.31",
+    "@tiptap/react": "3.31",
+    "@tiptap/starter-kit": "3.31",
+    "@tiptap/suggestion": "3.31",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

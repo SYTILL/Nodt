@@ -1,8 +1,9 @@
-import { useRef, type CSSProperties, type Dispatch, type PointerEvent, type ReactNode } from "react";
+import type { Editor } from "@tiptap/core";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type Dispatch, type PointerEvent, type ReactNode } from "react";
 import type { NoteId } from "../model/notes";
 import type { Action, State } from "../state/store";
 import { IconMinimize, IconRestore, IconX } from "./icons";
-import { NoteBody } from "./NoteBody";
+import { NoteEditor } from "./NoteEditor";
 import { scaleOf } from "./transition";
 
 const MIN_HEIGHT = 96;
@@ -45,6 +46,28 @@ export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidt
     if (state.moveOrigin || !isActive || state.warn) dispatch({ type: "select", id });
   }
 
+  // ───── 키보드 초점 ─────
+  const titleRef = useRef<HTMLInputElement>(null);
+  const [editor, setEditor] = useState<Editor | null>(null);
+  const focusTitle = useCallback(() => {
+    titleRef.current?.focus();
+    titleRef.current?.select();
+  }, []);
+  const focusBody = (where: "start" | null) => {
+    if (editor && !editor.isDestroyed) editor.commands.focus(where ?? undefined);
+    else titleRef.current?.focus();
+  };
+  // 초점 요청(새 노트 → 제목, 키보드로 패널 이동 → 마지막 커서 자리)을 한 번씩 처리한다
+  const handledFocus = useRef(0);
+  const focus = state.focus;
+  useEffect(() => {
+    if (!focus || focus.id !== id || handledFocus.current === focus.seq) return;
+    if (focus.where !== "title" && !editor && !minimized) return; // 에디터가 준비되면 다시 온다
+    handledFocus.current = focus.seq;
+    if (focus.where === "title") focusTitle();
+    else focusBody(focus.where === "body" ? "start" : null);
+  });
+
   return (
     <div
       className={"panel" + (isActive ? " active" : "") + (warn ? " warn" : "") + (minimized ? " min" : "")}
@@ -60,7 +83,23 @@ export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidt
           dispatch({ type: "menu", menu: { kind: "panel", id, x: e.clientX, y: e.clientY } });
         }}
       >
-        <div className={"ptitle" + (note.title ? "" : " empty")}>{note.title || "제목 없음"}</div>
+        <input
+          ref={titleRef}
+          className="ptitle"
+          value={note.title}
+          placeholder="제목 없음"
+          spellCheck={false}
+          aria-label="제목"
+          onChange={(e) => dispatch({ type: "setTitle", id, title: e.target.value })}
+          onKeyDown={(e) => {
+            // 제목에서 Tab, Enter, ↓ → 본문으로. 한글 조합 중 Enter는 조합을 끝내는 키라 건드리지 않는다.
+            if (e.nativeEvent.isComposing) return;
+            if (e.key === "Enter" || e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey)) {
+              e.preventDefault();
+              if (!minimized) focusBody("start");
+            }
+          }}
+        />
         <IconButton title={minimized ? "복원" : "최소화"} onClick={() => dispatch({ type: "toggleMinimize", id })}>
           {minimized ? <IconRestore /> : <IconMinimize />}
         </IconButton>
@@ -74,7 +113,7 @@ export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidt
       {!minimized && (
         <>
           <div className="pbody">
-            <NoteBody noteId={id} body={note.body} notes={state.notes} open={state.open} dispatch={dispatch} />
+            <NoteEditor note={note} onReady={setEditor} focusTitle={focusTitle} />
           </div>
           <HeightGrip onCommit={(h) => dispatch({ type: "panelHeight", id, height: h })} />
         </>

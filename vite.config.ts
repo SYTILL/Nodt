@@ -29,4 +29,8 @@ export default defineConfig(() => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  // 데스크톱 앱이라 번들을 로컬에서 읽는다. 에디터(Tiptap)가 들어가 500kB를 넘으므로 경고 기준을 올린다.
+  build: {
+    chunkSizeWarningLimit: 1500,
+  },
 }));

@@ -36,6 +36,9 @@ export function startPanelDrag(e: PointerEvent<HTMLElement>, id: NoteId, state: 
     if (!started) {
       if (Math.hypot(rawX, rawY) < THRESHOLD) return;
       started = true;
+      // 제목 입력칸을 잡고 끌기 시작했으면 입력과 글자 선택을 푼다
+      if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
+      window.getSelection()?.removeAllRanges();
       me.el.classList.add("dragging");
       me.el.setAttribute(DRAG_SHIFT_ATTR, "");
       document.body.classList.add("panel-dragging");

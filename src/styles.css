@@ -309,16 +309,21 @@ body.panel-dragging * {
 .phead .ib {
   width: 22px;
 }
+/* 제목 입력칸. 평소에는 글자처럼 보이고, 눌러서 바로 고친다 */
 .ptitle {
   flex: 1;
   min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
   font-weight: 600;
   font-size: var(--ts);
-  white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
 }
-.ptitle.empty {
+.ptitle::placeholder {
   color: var(--muted);
   font-weight: 400;
 }
@@ -409,52 +414,98 @@ body.panel-dragging * {
   pointer-events: none;
 }
 
-/* ───── 본문 ───── */
+/* ───── 본문 (Tiptap 에디터) ───── */
 .pbody {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding: 8px 12px 12px;
   line-height: 1.65;
+  display: flex;
+  flex-direction: column;
+  cursor: text;
 }
-.blk-h {
+.pbody .editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.pbody .ProseMirror {
+  flex: 1;
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ProseMirror p {
+  margin: 0;
+}
+.ProseMirror h2 {
   font-weight: 600;
   font-size: calc(var(--fs) + 0.5px);
-  margin-top: 6px;
+  line-height: 1.65;
+  margin: 6px 0 0;
 }
-.blk-li {
-  position: relative;
+.ProseMirror > h2:first-child {
+  margin-top: 0;
+}
+.ProseMirror ul {
+  margin: 0;
   padding-left: 14px;
+  list-style: none;
 }
-.blk-li::before {
+.ProseMirror ul:not([data-type="taskList"]) > li {
+  position: relative;
+}
+.ProseMirror ul:not([data-type="taskList"]) > li::before {
   content: "";
   position: absolute;
-  left: 3px;
+  left: -11px;
   top: 0.72em;
   width: 4px;
   height: 4px;
   border-radius: 50%;
   background: var(--muted);
 }
-.blk-todo {
+.ProseMirror ul[data-type="taskList"] {
+  padding-left: 0;
+}
+.ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  padding-left: 19px;
+}
+.ProseMirror ul[data-type="taskList"] > li {
   display: flex;
   gap: 7px;
   align-items: flex-start;
 }
-.cb {
+.ProseMirror ul[data-type="taskList"] > li > label {
+  position: relative;
+  flex: none;
+  display: flex;
+  margin-top: 0.38em;
+  user-select: none;
+}
+.ProseMirror ul[data-type="taskList"] > li > div {
+  flex: 1;
+  min-width: 0;
+}
+.ProseMirror ul[data-type="taskList"] > li[data-checked="true"] > div > p {
+  color: var(--muted);
+}
+.ProseMirror input[type="checkbox"] {
+  appearance: none;
   position: relative;
   width: 12px;
   height: 12px;
-  flex: none;
-  margin-top: 0.38em;
+  margin: 0;
   border: 1.5px solid var(--muted);
   border-radius: 3px;
+  cursor: pointer;
 }
-.cb.on {
+.ProseMirror input[type="checkbox"]:checked {
   background: var(--accent);
   border-color: var(--accent);
 }
-.cb.on::after {
+.ProseMirror input[type="checkbox"]:checked::after {
   content: "";
   position: absolute;
   left: 3px;
@@ -465,9 +516,34 @@ body.panel-dragging * {
   border-width: 0 1.5px 1.5px 0;
   transform: rotate(45deg);
 }
-.done .txt,
-.pbody s {
+.ProseMirror s {
   color: var(--muted);
+}
+.ProseMirror strong {
+  font-weight: 600;
+}
+/* 빈 줄 자리표시 글 */
+.ProseMirror .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--muted);
+  opacity: 0.6;
+  pointer-events: none;
+}
+/* `/` 입력 중 */
+.ProseMirror .suggestion {
+  color: var(--accent);
+}
+/* Ctrl+X로 잘라 둔 범위. 붙이면 옮겨지고 Esc로 푼다 */
+.ProseMirror .cut-box {
+  outline: 1.5px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.lnk-wrap {
+  display: inline;
 }
 
 /* ───── 링크 칩 ───── */
@@ -634,6 +710,21 @@ body.panel-dragging * {
 .cmenu button.danger:hover,
 .cmenu button.danger:focus-visible {
   background: var(--danger-soft);
+}
+.cmenu.slash {
+  z-index: 6;
+}
+.cmenu.slash button {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.cmenu.slash button.on {
+  background: var(--hover);
+}
+.cmenu.slash .hint {
+  color: var(--muted);
+  font-size: 12px;
 }
 .cmenu .sep {
   height: 1px;
