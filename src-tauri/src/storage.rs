@@ -236,6 +236,20 @@ pub fn backup_tick(data: &Path, now: u64) -> io::Result<Vec<String>> {
     Ok(made)
 }
 
+/// 주기와 상관없이 지금 바로 스냅샷을 하나 남긴다(초기화 직전 등). backups/<label>/<시각>에 쌓이고 순환하지 않는다.
+pub fn backup_now(data: &Path, label: &str, now: u64) -> io::Result<Option<String>> {
+    if !notes_dir(data).is_dir() {
+        return Ok(None);
+    }
+    let name = stamp(now);
+    let dest = data.join("backups").join(label).join(&name);
+    if dest.exists() {
+        return Ok(None);
+    }
+    copy_snapshot(data, &dest, notes_hash(data)?)?;
+    Ok(Some(format!("{label}/{name}")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

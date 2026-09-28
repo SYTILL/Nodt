@@ -154,6 +154,23 @@ export function insertLinkAt(doc: JSONContent, id: string, path: number[]): JSON
   return next;
 }
 
+/**
+ * 본문 끝에 새 줄로 링크를 붙인다. 마지막 줄이 비어 있으면 그 줄에 넣고,
+ * 마지막 블록이 목록이면 목록 항목을 하나 더 만든다(Enter를 친 것처럼).
+ */
+export function appendLink(doc: JSONContent, id: string): JSONContent {
+  const next = clone(doc);
+  const link: JSONContent = { type: LINK_NODE, attrs: { id } };
+  const blocks = (next.content ??= []);
+  const last = blocks[blocks.length - 1];
+  const line = (): JSONContent => ({ type: "paragraph", content: [link] });
+  if (last?.type === "paragraph" && !last.content?.length) last.content = [link];
+  else if (last?.type === "bulletList") (last.content ??= []).push({ type: "listItem", content: [line()] });
+  else if (last?.type === "taskList") (last.content ??= []).push({ type: "taskItem", attrs: { checked: false }, content: [line()] });
+  else blocks.push(line());
+  return next;
+}
+
 /** 링크가 속한 옮길 단위: 가장 가까운 목록 항목, 없으면 최상위 블록 */
 function unitPath(doc: JSONContent, linkPath: number[]): number[] {
   for (let len = linkPath.length - 1; len > 0; len--) {

@@ -14,7 +14,7 @@ import { showToast, type Session } from "./ui/session";
 /** 개발용 샘플 모드(주소에 ?sample). 저장하지 않는다. 자동 테스트가 이 모드로 돈다. */
 function sampleState() {
   const { notes, rootId, ids } = createSampleNotes();
-  return makeState(notes, rootId, {
+  return makeState(notes, [rootId], {
     open: new Set([ids.cs, ids.comp, ids.mid, ids.parser, ids.app]),
     active: ids.comp,
     settings: DEFAULT_SETTINGS,
@@ -69,6 +69,10 @@ async function start() {
     kind: backend.kind,
     dataDir: booted.dataDir,
     changeDataDir: backend.kind === "tauri" ? (dir) => changeDataDir(saver, backend, dir) : undefined,
+    beforeReset: async () => {
+      await saver.flush(false);
+      await backend.backupBeforeReset(saver.dataDir);
+    },
   };
   root.render(
     <React.StrictMode>

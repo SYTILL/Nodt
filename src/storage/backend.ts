@@ -19,6 +19,8 @@ export interface Backend {
   deleteNote(dir: string, id: string): Promise<void>;
   writeState(dir: string, text: string): Promise<void>;
   backupTick(dir: string): Promise<string[]>;
+  /** 초기화 직전에 지금 노트를 backups/reset에 남긴다 */
+  backupBeforeReset(dir: string): Promise<string | null>;
 }
 
 export function isTauri(): boolean {
@@ -36,6 +38,7 @@ const tauriBackend: Backend = {
   deleteNote: (dataDir, id) => invoke("delete_note", { dataDir, id }),
   writeState: (dataDir, text) => invoke("write_state", { dataDir, text }),
   backupTick: (dataDir) => invoke("backup_tick", { dataDir }),
+  backupBeforeReset: (dataDir) => invoke("backup_before_reset", { dataDir }),
 };
 
 // 브라우저용. 키: nodt.config, nodt.fs:<폴더>:note:<id>, nodt.fs:<폴더>:state
@@ -88,6 +91,7 @@ const browserBackend: Backend = {
   deleteNote: async (dir, id) => ls.del(`nodt.fs:${dir}:note:${id}`),
   writeState: async (dir, text) => ls.set(`nodt.fs:${dir}:state`, text),
   backupTick: async () => [],
+  backupBeforeReset: async () => null,
 };
 
 export function getBackend(): Backend {

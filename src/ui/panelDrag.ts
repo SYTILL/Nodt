@@ -1,9 +1,9 @@
 import type { Dispatch, PointerEvent } from "react";
 import type { NoteId } from "../model/notes";
-import { visibleKids, type Action, type State } from "../state/store";
+import { siblingsOf, type Action, type State } from "../state/store";
 import { DRAG_SHIFT_ATTR, RELAYOUT_EVENT, resist, scaleOf } from "./transition";
 
-// 패널 상단바를 끌어 같은 부모의 형제 패널 사이에서 순서를 바꾼다.
+// 패널 상단바를 끌어 같은 부모의 형제 패널(최상위 노트는 최상위 노트끼리) 사이에서 순서를 바꾼다.
 // 패널은 어디로든 끌리지만, 순서를 바꿀 수 있는 곳(자기 컬럼 안, 형제 패널 구간) 밖으로 나가면 저항이 걸린다.
 // 다른 형제 패널은 비켜주고, 놓으면 부모 본문의 링크 순서가 바뀌며 새 자리로 들어간다(reorder).
 
@@ -11,9 +11,7 @@ import { DRAG_SHIFT_ATTR, RELAYOUT_EVENT, resist, scaleOf } from "./transition";
 const THRESHOLD = 4;
 export function startPanelDrag(e: PointerEvent<HTMLElement>, id: NoteId, state: State, dispatch: Dispatch<Action>) {
   if (e.button !== 0 || (e.target as HTMLElement).closest("button") || state.moveOrigin) return;
-  const parent = state.tree.parent[id];
-  if (!parent) return;
-  const sibIds = visibleKids(state, parent);
+  const sibIds = siblingsOf(state, id);
   const from = sibIds.indexOf(id);
   const panelOf = (k: NoteId) => document.querySelector<HTMLElement>(`.ws .panel[data-id="${k}"]`);
   const els = sibIds.map(panelOf);

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import { cancelCut, pendingCut } from "./editor/clipboard";
 import { slashStore } from "./editor/slash";
 import { applyWindowMode } from "./platform";
-import { reducer, visibleKids, type Action, type Dir, type State } from "./state/store";
+import { reducer, siblingsOf, type Action, type Dir, type State } from "./state/store";
 import { applyTheme, type Mode } from "./theme/themes";
 import { AppContext, type AppApi } from "./ui/appContext";
 import { OverlayView } from "./ui/Overlays";
@@ -89,9 +89,24 @@ export default function App({ initial, onState, session }: Props) {
         else dispatch({ type: "escape" });
         return;
       }
+      // Ctrl+N: 새 노트. 선택한 패널이 없으면 최상위 노트, 있으면 그 노트의 하위 노트 링크.
+      // 본문에서는 에디터가 커서 자리에 링크를 넣는다(extensions.ts). 제목이나 패널만 선택한 상태면 본문 끝에 붙인다.
+      // Ctrl+W: 선택한 패널 닫기, 최상위 노트는 최소화.
+      // 한글 입력 상태에서도 되도록 글자 대신 키 위치(code)로 본다. 브라우저 기본 동작(새 창, 탭 닫기)은 늘 막는다.
+      const plainCtrl = e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
+      if (plainCtrl && (e.code === "KeyN" || e.code === "KeyW")) {
+        const inEditor = !!(e.target as HTMLElement | null)?.closest?.(".ProseMirror");
+        if (e.code === "KeyN" && inEditor && !s.overlay && !s.menu && !s.moveOrigin) return;
+        stop();
+        if (s.overlay || s.menu || s.moveOrigin || e.repeat) return;
+        if (e.code === "KeyW") dispatch({ type: "closeActive" });
+        else if (s.active) dispatch({ type: "addChild", parent: s.active, id: crypto.randomUUID() });
+        else dispatch({ type: "createRoot", id: crypto.randomUUID() });
+        return;
+      }
       if (s.overlay || s.menu) return;
       // 되돌리기 알림이 떠 있는 동안 Ctrl+Z는 삭제를 되돌린다
-      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === "z" && s.deleted) {
+      if (e.ctrlKey && !e.shiftKey && (e.key.toLowerCase() === "z" || e.code === "KeyZ") && s.deleted) {
         stop();
         dispatch({ type: "undoDelete" });
         return;
@@ -121,9 +136,8 @@ export default function App({ initial, onState, session }: Props) {
       // Alt+Shift+↑/↓: 같은 부모 안에서 선택한 패널의 순서를 바꾼다
       if (e.altKey && e.shiftKey && (dir === "up" || dir === "down")) {
         stop();
-        const parent = s.tree.parent[s.active];
-        if (!parent) return;
-        const index = visibleKids(s, parent).indexOf(s.active) + (dir === "up" ? -1 : 1);
+        if (!s.active) return;
+        const index = siblingsOf(s, s.active).indexOf(s.active) + (dir === "up" ? -1 : 1);
         dispatch({ type: "reorder", id: s.active, index });
         return;
       }
@@ -140,7 +154,8 @@ export default function App({ initial, onState, session }: Props) {
     <AppContext.Provider value={api}>
       <div className="app">
         <TitleBar warn={state.warn} dispatch={dispatch} />
-        <Workspace state={state} dispatch={dispatch} />
+        {/* 초기화하면 화면(캔버스 위치, 에디터)을 새로 만든다 */}
+        <Workspace key={state.epoch} state={state} dispatch={dispatch} />
         {state.moveOrigin && <div className="movebar">패널이동모드 · 방향키로 이동 · Enter 선택 · Esc 취소</div>}
         {state.toast && (
           <div className="toast" role="status" key={state.toast.seq}>

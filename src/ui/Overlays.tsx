@@ -1,4 +1,5 @@
-import { type Dispatch, type ReactNode } from "react";
+import { useState, type Dispatch, type ReactNode } from "react";
+import { emptyState, freshState } from "../storage/session";
 import { HOTKEY_LABEL } from "../platform";
 import type { Action, Overlay, Settings } from "../state/store";
 import { THEMES } from "../theme/themes";
@@ -10,7 +11,7 @@ const HELP: [string, [string, string][]][] = [
   [
     "노트와 링크",
     [
-      ["Ctrl+.", "새 노트 링크 만들기"],
+      ["Ctrl+N", "새 노트 링크 만들기 · 제목에 있으면 본문 끝에 · 선택한 패널이 없으면 새 최상위 노트"],
       ["/", "명령 메뉴 (줄 맨 앞이나 공백 뒤)"],
       ["Ctrl+Enter", "커서 바로 앞 링크 열기/닫기 · 깨진 링크면 새 노트로"],
       ["Tab / Enter", "제목에서 본문으로"],
@@ -23,6 +24,8 @@ const HELP: [string, [string, string][]][] = [
     "패널",
     [
       ["Esc", "선택한 패널 닫기 (메뉴·모드가 떠 있으면 그것부터)"],
+      ["Ctrl+W", "선택한 패널 닫기 · 최상위 노트는 최소화 / 복원"],
+      ["빈 곳 클릭", "선택 풀기"],
       ["Alt+← / Alt+→", "부모 / 첫 번째로 열린 자식 패널로"],
       ["Alt+↑ / Alt+↓", "같은 컬럼의 위 / 아래 패널로"],
       ["Alt+Shift+↑ / Alt+Shift+↓", "같은 부모 안에서 순서 바꾸기"],
@@ -103,6 +106,9 @@ export function OverlayView({ overlay, settings, dispatch, session }: Props) {
       {overlay.kind === "settings" && (
         <SettingsSheet settings={settings} dispatch={dispatch} onClose={close} session={session} />
       )}
+      {overlay.kind === "reset" && (
+        <ResetSheet settings={settings} dispatch={dispatch} onClose={close} session={session} />
+      )}
       {overlay.kind === "confirm" && (
         <div className="sheet" role="alertdialog" aria-label={overlay.message}>
           <p className="msg">{overlay.message}</p>
@@ -124,6 +130,75 @@ export function OverlayView({ overlay, settings, dispatch, session }: Props) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * 초기화 확인. 두 가지 중 고른다.
+ * - 사용법 노트로: 모든 노트와 화면 배치를 지우고 처음 켰을 때의 사용법 노트로. 설정은 그대로.
+ * - 완전 초기화: 노트를 모두 지우고 설정도 기본값으로. 빈 화면에서 시작한다(데이터 폴더 위치는 그대로).
+ */
+function ResetSheet({
+  settings,
+  dispatch,
+  onClose,
+  session,
+}: {
+  settings: Settings;
+  dispatch: Dispatch<Action>;
+  onClose: () => void;
+  session: Session;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [kind, setKind] = useState<"tutorial" | "all">("tutorial");
+  async function reset() {
+    setBusy(true);
+    try {
+      await session.beforeReset?.();
+      dispatch({ type: "hydrate", state: kind === "tutorial" ? freshState(settings) : emptyState() });
+    } catch (e) {
+      setBusy(false);
+      dispatch({ type: "toast", message: `초기화하지 못했어요 · ${String(e)}` });
+    }
+  }
+  return (
+    <div className="sheet" role="alertdialog" aria-label="초기화">
+      <h4>초기화할까요?</h4>
+      <p className="msg">모든 노트와 화면 배치가 지워져요.</p>
+      <div className="opt">
+        <Radios
+          name="resetKind"
+          column
+          value={kind}
+          onChange={setKind}
+          options={[
+            [
+              "tutorial",
+              <span>
+                <strong>사용법 노트로</strong> · 처음 켰을 때처럼. 설정은 그대로
+              </span>,
+            ],
+            [
+              "all",
+              <span>
+                <strong>완전 초기화</strong> · 빈 화면에서 시작. 설정도 처음 값으로
+              </span>,
+            ],
+          ]}
+        />
+      </div>
+      <p className="note">
+        지우기 직전의 노트는 데이터 폴더의 <code>{"backups\\reset"}</code>에 한 벌 남겨 둬요.
+      </p>
+      <div className="acts">
+        <button type="button" className="sbtn" autoFocus onClick={onClose} disabled={busy}>
+          취소
+        </button>
+        <button type="button" className="sbtn danger" onClick={() => void reset()} disabled={busy}>
+          초기화
+        </button>
+      </div>
     </div>
   );
 }

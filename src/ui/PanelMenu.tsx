@@ -102,8 +102,7 @@ export function PanelMenu({
   const items: Item[] = [
     { label: "하위 전체 펼치기", action: { type: "expandAll", id }, disabled: desc.length === 0 },
     { label: "하위 전체 접기", action: { type: "collapseAll", id }, disabled: !desc.some((k) => state.open.has(k)) },
+    { label: "노트 삭제", action: { type: "delete", id }, danger: true, separated: true },
   ];
-  // 최상위 노트는 삭제할 수 없다
-  if (id !== state.rootId) items.push({ label: "노트 삭제", action: { type: "delete", id }, danger: true, separated: true });
   return <Dropdown x={menu.x} y={menu.y} items={items} dispatch={dispatch} />;
 }

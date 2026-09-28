@@ -19,7 +19,8 @@ function NodtKeys(getApi: GetApi) {
     addKeyboardShortcuts() {
       return {
         "Mod-Enter": () => toggleLinkBeforeCursor(this.editor, getApi()),
-        "Mod-.": () => insertNewLink(this.editor, getApi()),
+        // 제목이나 패널만 선택한 상태의 Ctrl+N은 App이 받는다
+        "Mod-n": () => insertNewLink(this.editor, getApi()),
         ArrowUp: () => arrowUpToTitle(this.editor, getApi()),
         // 목록 밖에서는 Tab이 초점을 다른 곳으로 옮기지 않게 막는다
         Tab: () => true,

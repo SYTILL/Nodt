@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, type Dispatch, type PointerEvent } 
 import { columns, lineage, lineageStrength, type Action, type State, type View } from "../state/store";
 import { Panel } from "./Panel";
 import { startPanelDrag } from "./panelDrag";
-import { RELAYOUT_EVENT, resist, scaleOf } from "./transition";
+import { RELAYOUT_EVENT, resist, scaleOf, SETTLED_EVENT } from "./transition";
 
 // 패널 영역. 창과 분리해 두어서 v0.2 플로팅 모드에서 창 배경만 투명하게 바꿀 수 있게 한다.
 // 스크롤 대신 캔버스처럼 쓴다. 빈 곳을 끌면 전체가 움직이고, 휠로 확대·축소한다.
@@ -28,6 +28,8 @@ const OUT_FRICTION = 0.5;
 const MIN_SPEED = 0.02;
 /** 놓기 직전 이 시간(ms) 동안의 움직임으로 속도를 잰다 */
 const VELOCITY_WINDOW = 80;
+/** 빈 곳을 이만큼(px) 안에서 눌렀다 떼면 끌기가 아니라 클릭이다 */
+const CLICK_SLOP = 4;
 
 interface Props {
   state: State;
@@ -192,6 +194,11 @@ export function Workspace({ state, dispatch }: Props) {
     if (!p) return;
     pan.current = null;
     e.currentTarget.classList.remove("panning");
+    // 끌지 않고 누르기만 했으면 선택을 푼다. 글 입력 초점도 뺀다.
+    if (Math.hypot(e.clientX - p.px, e.clientY - p.py) < CLICK_SLOP && !stateRef.current.moveOrigin) {
+      (document.activeElement as HTMLElement | null)?.blur();
+      if (stateRef.current.active) dispatch({ type: "select", id: null });
+    }
     // 놓기 직전 속도로 관성을 준다. 멈춰 있다가 놓았으면 바로 경계 확인
     const now = performance.now();
     const first = p.trail[0];
@@ -204,12 +211,16 @@ export function Workspace({ state, dispatch }: Props) {
     }
   }
 
-  // 선택한 패널이 화면 밖으로 나가 있으면 부드럽게 끌어와 보여준다
-  useEffect(() => {
+  // 선택한 패널이 화면 밖으로 나가 있으면 부드럽게 끌어와 보여준다.
+  // 선택이 바뀔 때, 그리고 패널 배치 애니메이션이 끝났을 때(순서 바꾸기, 새 노트 등으로 밀려났을 수 있다) 확인한다.
+  const follow = useRef(() => {});
+  follow.current = () => {
     const root = rootRef.current;
     const canvas = canvasRef.current;
-    const el = root?.querySelector<HTMLElement>(`.panel[data-id="${state.active}"]`);
-    if (!root || !canvas || !el) return;
+    const active = stateRef.current.active;
+    if (!root || !canvas || !active || pan.current) return;
+    const el = root.querySelector<HTMLElement>(`.panel[data-id="${active}"]`);
+    if (!el) return;
     // 화면 이동 애니메이션이 도는 중일 수 있으므로, 캔버스 안 위치에서 목표 화면 위치를 계산한다
     const w = root.getBoundingClientRect();
     const c = canvas.getBoundingClientRect();
@@ -232,7 +243,13 @@ export function Workspace({ state, dispatch }: Props) {
     stopInertia();
     view.current = { ...view.current, x: view.current.x + dx, y: view.current.y + dy };
     applyView(GLIDE);
-  }, [state.active, applyView]);
+  };
+  useEffect(() => follow.current(), [state.active]);
+  useEffect(() => {
+    const on = () => follow.current();
+    window.addEventListener(SETTLED_EVENT, on);
+    return () => window.removeEventListener(SETTLED_EVENT, on);
+  }, []);
 
   // ───── 연결선 ─────
   // 렌더 후, 본문 스크롤, 크기 변화, 패널이동모드 축소 애니메이션 때마다 다시 그린다
@@ -303,6 +320,11 @@ export function Workspace({ state, dispatch }: Props) {
           })}
         </div>
       </div>
+      {cols.length === 0 && (
+        <div className="empty-hint">
+          <kbd>Ctrl+N</kbd> 으로 새 노트
+        </div>
+      )}
     </div>
   );
 }

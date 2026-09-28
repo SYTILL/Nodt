@@ -28,9 +28,9 @@ interface Props {
 
 export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidthCommit, extra }: Props) {
   const note = state.notes[id];
-  const isRoot = id === state.rootId;
+  const isRoot = !state.tree.parent[id];
   const isActive = state.active === id;
-  const warn = isRoot && state.warn;
+  const warn = isRoot && isActive && state.warn;
   const minimized = state.minimized.has(id);
 
   const style: CSSProperties = {};
@@ -54,8 +54,11 @@ export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidt
     titleRef.current?.select();
   }, []);
   const focusBody = (where: "start" | null) => {
-    if (editor && !editor.isDestroyed) editor.commands.focus(where ?? undefined);
-    else titleRef.current?.focus();
+    if (editor && !editor.isDestroyed) {
+      // Tiptap의 focus는 한 프레임 뒤에 초점을 옮기므로, 그 사이에 친 글자가 제목으로 가지 않게 바로 옮겨 둔다
+      editor.view.focus();
+      editor.commands.focus(where ?? undefined);
+    } else titleRef.current?.focus();
   };
   // 초점 요청(새 노트 → 제목, 키보드로 패널 이동 → 마지막 커서 자리)을 한 번씩 처리한다
   const handledFocus = useRef(0);

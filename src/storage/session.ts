@@ -1,6 +1,6 @@
-import { parseMarkdown } from "../model/markdown";
-import { newNote, type Note, type NoteId, type Notes } from "../model/notes";
-import { DEFAULT_SETTINGS, makeState, reachable, type Settings, type State, type View } from "../state/store";
+import { buildTree, type Note, type NoteId, type Notes } from "../model/notes";
+import { createTutorial } from "../model/tutorial";
+import { DEFAULT_SETTINGS, makeState, reachable, rootsOf, type Settings, type State, type View } from "../state/store";
 import { THEMES } from "../theme/themes";
 import type { Backend } from "./backend";
 import { parseNote, serializeNote } from "./noteFile";
@@ -22,13 +22,16 @@ export interface WindowGeom {
   maximized: boolean;
 }
 
-/** 데이터 폴더의 state.json */
+/** 데이터 폴더의 state.json. v1은 최상위 노트가 하나(rootId)였다. */
 interface StoredState {
-  version: 1;
-  rootId: NoteId;
+  version: 1 | 2;
+  /** v2: 최상위 노트들, 위에서부터 */
+  roots?: NoteId[];
+  /** v1 */
+  rootId?: NoteId;
   open: NoteId[];
   minimized: NoteId[];
-  active: NoteId;
+  active: NoteId | null;
   colWidths: Record<number, number>;
   panelHeights: Record<NoteId, number>;
   view: View;
@@ -56,14 +59,22 @@ export function normalizeSettings(raw: unknown): Settings {
   return s;
 }
 
-const WELCOME_MD = [
-  "생각 하나에서 다음 생각으로 계속 들어가는 노트예요.",
-  "",
-  "- 더 들어가고 싶은 생각이 생기면 Ctrl+. 을 눌러 새 노트 링크를 만들어요.",
-  "- 줄 맨 앞에서 / 를 누르면 명령 메뉴가 떠요.",
-  "- Alt+방향키로 패널 사이를 옮겨 다녀요.",
-  "- 오른쪽 위 ? 에 단축키가 모두 있어요.",
-].join("\n");
+/** 사용법 노트로 된 처음 상태(처음 켤 때, 초기화할 때). 설정은 넘겨받은 그대로 둔다. */
+export function freshState(settings: Settings): State {
+  const t = createTutorial();
+  return makeState(t.notes, [t.rootId], {
+    settings,
+    open: t.open,
+    minimized: t.minimized,
+    active: t.active,
+    panelHeights: t.panelHeights,
+  });
+}
+
+/** 완전 초기화: 노트가 하나도 없고 설정도 기본값이다 */
+export function emptyState(): State {
+  return makeState({}, [], { settings: DEFAULT_SETTINGS });
+}
 
 export interface Booted {
   state: State;
@@ -82,31 +93,34 @@ export async function boot(backend: Backend): Promise<Booted> {
 
   const notes: Notes = {};
   const texts = new Map<NoteId, string>();
-  const roots: Note[] = [];
+  const parentless: Note[] = [];
   for (const { id, text } of loaded.notes) {
     const { note, parent } = parseNote(id, text);
     notes[id] = note;
     texts.set(id, text);
-    if (!parent) roots.push(note);
+    if (!parent) parentless.push(note);
   }
   const stored = parseJson<StoredState>(loaded.state);
 
-  // 최상위 노트: 지난번 것 → parent가 빈 노트 중 가장 먼저 만든 것 → 없으면 새로 만든다
-  let rootId = stored?.rootId && stored.rootId in notes ? stored.rootId : undefined;
-  rootId ??= roots.sort((a, b) => a.created.localeCompare(b.created))[0]?.id;
-  if (!rootId) {
-    rootId = crypto.randomUUID();
-    notes[rootId] = newNote(rootId, "Nodt", parseMarkdown(WELCOME_MD));
+  // 최상위 노트: 지난번 순서 → 목록에 없어도 parent가 빈 노트(밖에서 넣은 파일 등)는 만든 순서로 뒤에 붙인다
+  const tree = buildTree(notes);
+  const isTop = (id: NoteId) => id in notes && !tree.parent[id];
+  const roots = [...new Set((stored?.roots ?? (stored?.rootId ? [stored.rootId] : [])).filter(isTop))];
+  parentless.sort((a, b) => a.created.localeCompare(b.created));
+  for (const n of parentless) if (isTop(n.id) && !roots.includes(n.id)) roots.push(n.id);
+  // 노트가 하나도 없으면 사용법 노트로 시작한다. 완전 초기화한 뒤(v2 상태 파일이 있음)는 빈 화면 그대로다.
+  if (!roots.length && stored?.version !== 2) {
+    return { state: freshState(settings), dataDir, config: { ...config, dataDir }, texts, window: stored?.window };
   }
 
   const has = (id: NoteId) => id in notes;
-  const base = makeState(notes, rootId, { settings });
+  const base = makeState(notes, roots, { settings });
   const live = new Set(reachable(base));
-  const state = makeState(notes, rootId, {
+  const state = makeState(notes, roots, {
     settings,
     open: new Set((stored?.open ?? []).filter(has)),
     minimized: new Set((stored?.minimized ?? []).filter(has)),
-    active: stored?.active && live.has(stored.active) ? stored.active : rootId,
+    active: stored?.active && live.has(stored.active) ? stored.active : stored?.version === 2 ? null : (roots[0] ?? null),
     colWidths: stored?.colWidths ?? {},
     panelHeights: Object.fromEntries(Object.entries(stored?.panelHeights ?? {}).filter(([k]) => has(k))),
     view: stored?.view ?? { x: 0, y: 0, z: 1 },
@@ -116,8 +130,8 @@ export async function boot(backend: Backend): Promise<Booted> {
 
 function storedState(s: State, window: WindowGeom | undefined): StoredState {
   return {
-    version: 1,
-    rootId: s.rootId,
+    version: 2,
+    roots: rootsOf(s),
     open: [...s.open],
     minimized: [...s.minimized],
     active: s.active,

@@ -65,6 +65,14 @@ export const IconGear = () => (
   </svg>
 );
 
+/** 초기화: 되돌리는 화살표 */
+export const IconReset = () => (
+  <Svg width={1.5}>
+    <path d="M3.1 9.6A5 5 0 1 0 4.4 4.3" />
+    <path d="M2.6 2.2v2.9h2.9" />
+  </Svg>
+);
+
 export const IconHelp = () => (
   <Svg width={1.5}>
     <circle cx="8" cy="8" r="6.2" />

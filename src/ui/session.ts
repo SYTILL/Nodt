@@ -5,6 +5,8 @@ export interface Session {
   dataDir: string;
   /** 데이터 폴더를 바꾼다. 앱이 새로 뜬다. Tauri에서만 된다. */
   changeDataDir?: (dir: string) => Promise<void>;
+  /** 초기화 직전: 지금 노트를 저장하고 backups/reset에 한 벌 남긴다 */
+  beforeReset?: () => Promise<void>;
 }
 
 export const TOAST_EVENT = "nodt:toast";

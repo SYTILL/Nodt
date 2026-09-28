@@ -1,7 +1,7 @@
 import { useEffect, useState, type Dispatch } from "react";
 import { minimizeWindow, quitApp, toggleMaximizeWindow, watchMaximized } from "../platform";
 import type { Action } from "../state/store";
-import { IconGear, IconHelp, IconLogo, IconWinClose, IconWinMaximize, IconWinMinimize, IconWinRestore } from "./icons";
+import { IconGear, IconHelp, IconReset, IconLogo, IconWinClose, IconWinMaximize, IconWinMinimize, IconWinRestore } from "./icons";
 
 // 테두리 없는 창의 자체 상단바. 빈 곳을 끌면 창이 움직이고, 두 번 누르면 최대화된다.
 
@@ -31,6 +31,15 @@ export function TitleBar({ warn, dispatch }: Props) {
         Nodt
       </span>
       <div className="tbar-acts">
+        <button
+          type="button"
+          className="ib"
+          title="초기화"
+          aria-label="초기화"
+          onClick={() => dispatch({ type: "overlay", overlay: { kind: "reset" } })}
+        >
+          <IconReset />
+        </button>
         <button
           type="button"
           className="ib"

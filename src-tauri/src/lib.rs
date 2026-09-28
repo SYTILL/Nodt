@@ -68,6 +68,12 @@ fn backup_tick(data_dir: String) -> Result<Vec<String>, String> {
     storage::backup_tick(data_dir.as_ref(), storage::now_secs()).map_err(err)
 }
 
+/// 초기화 직전에 지금 노트를 backups/reset에 한 벌 남긴다
+#[tauri::command]
+fn backup_before_reset(data_dir: String) -> Result<Option<String>, String> {
+    storage::backup_now(data_dir.as_ref(), "reset", storage::now_secs()).map_err(err)
+}
+
 /// 창을 보이기 전에 지난번 위치와 크기로 되돌린다. 저장된 위치가 어느 모니터에도 없으면 가운데에 둔다.
 fn restore_window(app: &AppHandle) {
     let Some(win) = app.get_webview_window("main") else { return };
@@ -122,7 +128,8 @@ pub fn run() {
             write_note,
             delete_note,
             write_state,
-            backup_tick
+            backup_tick,
+            backup_before_reset
         ])
         .setup(|app| {
             restore_window(app.handle());

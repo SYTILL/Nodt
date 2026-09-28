@@ -10,10 +10,15 @@ const EXIT_DURATION = 200;
 const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
 /** 애니메이션이 끝나면 보내는 이벤트. 연결선을 다시 그린다. */
 export const RELAYOUT_EVENT = "nodt:relayout";
+/** 패널이 열리고 닫히는 애니메이션이 모두 끝났을 때. 선택한 패널이 화면 밖으로 밀려났으면 데려온다. */
+export const SETTLED_EVENT = "nodt:settled";
 
 const LAYOUT_ACTIONS = new Set<Action["type"]>([
   "toggleLink",
   "close",
+  "closeActive",
+  "createRoot",
+  "addChild",
   "toggleMinimize",
   "delete",
   "undoDelete",
@@ -186,5 +191,6 @@ export function followWhileRunning(anims: Animation[]) {
   void Promise.allSettled(anims.map((a) => a.finished)).then(() => {
     running = false;
     window.dispatchEvent(new Event(RELAYOUT_EVENT));
+    window.dispatchEvent(new Event(SETTLED_EVENT));
   });
 }
