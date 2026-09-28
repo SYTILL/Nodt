@@ -3,6 +3,17 @@ import { invoke } from "@tauri-apps/api/core";
 // 파일 처리는 Tauri의 Rust 쪽(src-tauri/src/storage.rs)이 한다.
 // 브라우저에서 화면만 띄울 때(npm run dev)는 localStorage로 흉내 낸다.
 
+/** 되돌릴 수 있는 백업 하나 (src-tauri/src/storage.rs의 BackupInfo) */
+export interface BackupInfo {
+  /** "5min/20260927-141500Z" 꼴 */
+  id: string;
+  /** 5min, 2h, 1d, 1w, 1m, reset(초기화 직전), restore(되돌리기 직전) */
+  tier: string;
+  /** 유닉스 초 */
+  secs: number;
+  notes: number;
+}
+
 export interface Loaded {
   notes: { id: string; text: string }[];
   state: string | null;
@@ -21,6 +32,9 @@ export interface Backend {
   backupTick(dir: string): Promise<string[]>;
   /** 초기화 직전에 지금 노트를 backups/reset에 남긴다 */
   backupBeforeReset(dir: string): Promise<string | null>;
+  listBackups(dir: string): Promise<BackupInfo[]>;
+  /** 백업으로 되돌린다. 지금 상태는 backups/restore에 남는다. 이어서 앱을 새로 불러야 한다. */
+  restoreBackup(dir: string, id: string): Promise<void>;
 }
 
 export function isTauri(): boolean {
@@ -39,6 +53,8 @@ const tauriBackend: Backend = {
   writeState: (dataDir, text) => invoke("write_state", { dataDir, text }),
   backupTick: (dataDir) => invoke("backup_tick", { dataDir }),
   backupBeforeReset: (dataDir) => invoke("backup_before_reset", { dataDir }),
+  listBackups: (dataDir) => invoke("list_backups", { dataDir }),
+  restoreBackup: (dataDir, id) => invoke("restore_backup", { dataDir, id }),
 };
 
 // 브라우저용. 키: nodt.config, nodt.fs:<폴더>:note:<id>, nodt.fs:<폴더>:state
@@ -92,6 +108,10 @@ const browserBackend: Backend = {
   writeState: async (dir, text) => ls.set(`nodt.fs:${dir}:state`, text),
   backupTick: async () => [],
   backupBeforeReset: async () => null,
+  listBackups: async () => [],
+  restoreBackup: async () => {
+    throw new Error("브라우저에서는 백업이 없어요");
+  },
 };
 
 export function getBackend(): Backend {

@@ -250,6 +250,88 @@ pub fn backup_now(data: &Path, label: &str, now: u64) -> io::Result<Option<Strin
     Ok(Some(format!("{label}/{name}")))
 }
 
+// ───── 백업에서 되돌리기 ─────
+
+/// 되돌릴 수 있는 백업이 있는 폴더들. 주기 단계와, 초기화·되돌리기 직전에 남긴 것.
+const RESTORE_TIERS: [&str; 7] = ["5min", "2h", "1d", "1w", "1m", "reset", "restore"];
+
+#[derive(Serialize)]
+pub struct BackupInfo {
+    /// "5min/20260927-141500Z" 꼴. 되돌릴 때 이 값을 넘긴다.
+    pub id: String,
+    pub tier: String,
+    /// 유닉스 초(UTC)
+    pub secs: u64,
+    pub notes: usize,
+}
+
+/// 백업 목록, 최신 것부터. 내용이 같은 스냅샷(여러 단계에 동시에 남은 것 등)은 가장 최근 것 하나만 보여준다.
+pub fn list_backups(data: &Path) -> Vec<BackupInfo> {
+    let mut all: Vec<(BackupInfo, Option<String>)> = Vec::new();
+    for tier in RESTORE_TIERS {
+        for (secs, path) in snapshots(&data.join("backups").join(tier)) {
+            let notes = fs::read_dir(path.join("notes"))
+                .map(|rd| rd.flatten().filter(|e| e.path().extension().is_some_and(|x| x == "md")).count())
+                .unwrap_or(0);
+            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            let hash = fs::read_to_string(path.join(".hash")).ok();
+            all.push((BackupInfo { id: format!("{tier}/{name}"), tier: tier.to_string(), secs, notes }, hash));
+        }
+    }
+    all.sort_by(|a, b| b.0.secs.cmp(&a.0.secs));
+    let mut seen = std::collections::HashSet::new();
+    all.into_iter()
+        .filter(|(_, h)| h.as_ref().is_none_or(|h| seen.insert(h.clone())))
+        .map(|(b, _)| b)
+        .collect()
+}
+
+/// id("단계/시각")를 백업 폴더 경로로. 목록에 나올 수 있는 모양만 받는다.
+fn backup_path(data: &Path, id: &str) -> io::Result<PathBuf> {
+    let (tier, name) = id.split_once('/').ok_or_else(|| invalid("잘못된 백업 이름"))?;
+    if !RESTORE_TIERS.contains(&tier) || parse_stamp(name).is_none() {
+        return Err(invalid("잘못된 백업 이름"));
+    }
+    let path = data.join("backups").join(tier).join(name);
+    if !path.join("notes").is_dir() {
+        return Err(invalid("백업이 없음"));
+    }
+    Ok(path)
+}
+
+/// 백업으로 되돌린다. 먼저 지금 상태를 backups/restore에 남기고,
+/// 백업의 노트를 새 폴더에 모두 복사한 뒤 notes 폴더와 바꿔치기한다(중간에 실패해도 지금 노트는 남는다).
+pub fn restore_backup(data: &Path, id: &str, now: u64) -> io::Result<()> {
+    let src = backup_path(data, id)?;
+    backup_now(data, "restore", now)?;
+    let notes = notes_dir(data);
+    let fresh = data.join("notes.restoring");
+    let old = data.join("notes.old");
+    let _ = fs::remove_dir_all(&fresh);
+    let _ = fs::remove_dir_all(&old);
+    fs::create_dir_all(&fresh)?;
+    for entry in fs::read_dir(src.join("notes"))?.flatten() {
+        let p = entry.path();
+        if p.extension().is_some_and(|x| x == "md") {
+            fs::copy(&p, fresh.join(entry.file_name()))?;
+        }
+    }
+    if notes.exists() {
+        fs::rename(&notes, &old)?;
+    }
+    if let Err(e) = fs::rename(&fresh, &notes) {
+        // 되돌리기에 실패하면 원래 노트를 제자리로
+        let _ = fs::rename(&old, &notes);
+        return Err(e);
+    }
+    let _ = fs::remove_dir_all(&old);
+    let state = src.join("state.json");
+    if state.exists() {
+        write_atomic(&data.join("state.json"), &fs::read_to_string(state)?)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -318,6 +400,38 @@ mod tests {
         // 스냅샷 안에 노트가 들어 있다
         let (_, newest) = snapshots(&d.join("backups").join("5min")).pop().unwrap();
         assert_eq!(fs::read_to_string(newest.join("notes").join("a.md")).unwrap(), "19");
+        fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn list_and_restore() {
+        let d = temp_dir("restore");
+        write_note(&d, "a", "old").unwrap();
+        write_state(&d, "{\"v\":1}").unwrap();
+        let t0 = 1_790_000_000;
+        // 처음 스냅샷은 다섯 단계 모두 같은 내용 → 목록에는 하나
+        backup_tick(&d, t0).unwrap();
+        let list = list_backups(&d);
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].notes, 1);
+        let id = list[0].id.clone();
+        // 그 뒤로 노트가 바뀌고 늘었다
+        write_note(&d, "a", "new").unwrap();
+        write_note(&d, "b", "added").unwrap();
+        write_state(&d, "{\"v\":2}").unwrap();
+        restore_backup(&d, &id, t0 + 100).unwrap();
+        // 백업 때로 돌아간다: a는 옛 내용, b는 없음, 상태도 옛 것
+        assert_eq!(fs::read_to_string(notes_dir(&d).join("a.md")).unwrap(), "old");
+        assert!(!notes_dir(&d).join("b.md").exists());
+        assert_eq!(fs::read_to_string(d.join("state.json")).unwrap(), "{\"v\":1}");
+        // 되돌리기 직전 상태가 backups/restore에 남아 목록 맨 위에 온다
+        let list = list_backups(&d);
+        assert_eq!(list[0].tier, "restore");
+        assert_eq!(list[0].notes, 2);
+        // 이상한 이름은 거절
+        assert!(restore_backup(&d, "../x/20260921-141320Z", t0).is_err());
+        assert!(restore_backup(&d, "5min/..", t0).is_err());
+        assert!(!d.join("notes.old").exists() && !d.join("notes.restoring").exists());
         fs::remove_dir_all(d).unwrap();
     }
 }

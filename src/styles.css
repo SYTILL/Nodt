@@ -43,6 +43,7 @@ body,
 }
 body {
   background: var(--bg);
+  transition: background-color 0.2s;
   color: var(--text);
   font-family: var(--font);
   font-size: var(--fs);
@@ -163,6 +164,13 @@ strong {
 .ws.panning {
   cursor: grabbing;
   user-select: none;
+}
+/* Mica(Windows 11): 창 배경과 상단바를 반투명하게 해서 바탕화면 색이 은은하게 비치게 한다. 패널은 불투명 그대로. */
+html.mica body {
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+html.mica .tbar {
+  background: color-mix(in srgb, var(--chrome) 45%, transparent);
 }
 /* 노트가 하나도 없을 때 가운데 안내 */
 .empty-hint {
@@ -855,6 +863,39 @@ kbd {
 }
 .sheet .note {
   margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+/* 백업 목록: 시각은 왼쪽, 단위와 노트 수는 오른쪽 */
+.backup-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 340px;
+  overflow-y: auto;
+  margin: 0 -8px;
+}
+.backup-list button {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.backup-list button:hover,
+.backup-list button:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+.backup-list button:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.backup-list .meta {
   color: var(--muted);
   font-size: 12px;
 }

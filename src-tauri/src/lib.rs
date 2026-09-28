@@ -74,6 +74,38 @@ fn backup_before_reset(data_dir: String) -> Result<Option<String>, String> {
     storage::backup_now(data_dir.as_ref(), "reset", storage::now_secs()).map_err(err)
 }
 
+/// 되돌릴 수 있는 백업 목록(최신 것부터)
+#[tauri::command]
+fn list_backups(data_dir: String) -> Vec<storage::BackupInfo> {
+    storage::list_backups(data_dir.as_ref())
+}
+
+/// 백업으로 되돌린다. 지금 상태는 backups/restore에 남긴다. 프론트엔드는 이어서 새로 불러온다.
+#[tauri::command]
+fn restore_backup(data_dir: String, id: String) -> Result<(), String> {
+    storage::restore_backup(data_dir.as_ref(), &id, storage::now_secs()).map_err(err)
+}
+
+/// Windows 11(빌드 22000 이상)에서 창 배경에 Mica를 깐다. 앱의 밝기에 맞춰 밝은/어두운 Mica를 고른다.
+/// 적용했으면 true. false면 프론트엔드는 배경을 불투명하게 그린다(Windows 10 등).
+#[tauri::command]
+fn set_mica(window: tauri::WebviewWindow, dark: bool) -> bool {
+    #[cfg(windows)]
+    {
+        use tauri::window::{Effect, EffectsBuilder};
+        if windows_version::OsVersion::current().build < 22000 {
+            return false;
+        }
+        let effect = if dark { Effect::MicaDark } else { Effect::MicaLight };
+        window.set_effects(EffectsBuilder::new().effect(effect).build()).is_ok()
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, dark);
+        false
+    }
+}
+
 /// 창을 보이기 전에 지난번 위치와 크기로 되돌린다. 저장된 위치가 어느 모니터에도 없으면 가운데에 둔다.
 fn restore_window(app: &AppHandle) {
     let Some(win) = app.get_webview_window("main") else { return };
@@ -118,7 +150,6 @@ fn restore_window(app: &AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             default_data_dir,
             read_config,
@@ -129,7 +160,10 @@ pub fn run() {
             delete_note,
             write_state,
             backup_tick,
-            backup_before_reset
+            backup_before_reset,
+            list_backups,
+            restore_backup,
+            set_mica
         ])
         .setup(|app| {
             restore_window(app.handle());

@@ -13,7 +13,6 @@
     "@fontsource/ibm-plex-sans-kr": "^5.3.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.8.0",
-    "@tauri-apps/plugin-global-shortcut": "^2.4.0",
     "@tiptap/core": "3.31",
     "@tiptap/extension-list": "3.31",
     "@tiptap/extensions": "3.31",

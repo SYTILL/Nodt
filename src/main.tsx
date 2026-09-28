@@ -74,6 +74,18 @@ async function start() {
       await saver.flush(false);
       await backend.backupBeforeReset(saver.dataDir);
     },
+    listBackups: backend.kind === "tauri" ? () => backend.listBackups(saver.dataDir) : undefined,
+    restoreBackup: async (id) => {
+      await saver.stop();
+      try {
+        await backend.restoreBackup(saver.dataDir, id);
+      } catch (e) {
+        // 되돌리지 못했으면 지금 노트를 계속 저장한다
+        saver.resume();
+        throw e;
+      }
+      location.reload();
+    },
   };
   root.render(
     <React.StrictMode>

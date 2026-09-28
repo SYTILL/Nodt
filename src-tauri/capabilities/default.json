@@ -23,10 +23,6 @@
     "core:window:allow-show",
     "core:window:allow-hide",
     "core:window:allow-set-focus",
-    "core:window:allow-set-always-on-top",
-    "dialog:allow-open",
-    "global-shortcut:allow-register",
-    "global-shortcut:allow-unregister",
-    "global-shortcut:allow-is-registered"
+    "dialog:allow-open"
   ]
 }

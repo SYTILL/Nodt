@@ -47,6 +47,8 @@ export type Overlay =
   | { kind: "settings" }
   /** 초기화 확인 */
   | { kind: "reset" }
+  /** 백업에서 되돌리기 */
+  | { kind: "restore" }
   | { kind: "confirm"; message: string; confirmLabel: string; action: Action };
 
 export type View = { x: number; y: number; z: number };

@@ -172,7 +172,22 @@ export class Saver {
     this.configText = JSON.stringify(config);
   }
 
+  /** 백업으로 되돌리는 중에는 더 쓰지 않는다(되돌린 파일을 옛 상태로 덮어쓰지 않게) */
+  private stopped = false;
+
+  /** 기다리던 저장을 마치고, 그 뒤로는 쓰지 않는다 */
+  async stop() {
+    await this.flush(false);
+    this.stopped = true;
+    clearTimeout(this.timer);
+  }
+
+  resume() {
+    this.stopped = false;
+  }
+
   schedule(s: State) {
+    if (this.stopped) return;
     this.latest = s;
     clearTimeout(this.timer);
     this.timer = window.setTimeout(() => void this.flush(false), 1000);
@@ -187,7 +202,7 @@ export class Saver {
 
   private async write(final: boolean) {
     const s = this.latest;
-    if (!s) return;
+    if (!s || this.stopped) return;
     const b = this.backend;
     const dir = this.dataDir;
 

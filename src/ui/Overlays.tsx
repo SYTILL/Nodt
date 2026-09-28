@@ -1,5 +1,6 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { useState, type Dispatch, type ReactNode } from "react";
+import { useEffect, useRef, useState, type Dispatch, type KeyboardEvent, type ReactNode } from "react";
+import type { BackupInfo } from "../storage/backend";
 import { emptyState, freshState } from "../storage/session";
 import type { Action, Overlay, Settings } from "../state/store";
 import { THEMES } from "../theme/themes";
@@ -106,6 +107,7 @@ export function OverlayView({ overlay, settings, dispatch, session }: Props) {
       {overlay.kind === "settings" && (
         <SettingsSheet settings={settings} dispatch={dispatch} onClose={close} session={session} />
       )}
+      {overlay.kind === "restore" && <RestoreSheet dispatch={dispatch} onClose={close} session={session} />}
       {overlay.kind === "reset" && (
         <ResetSheet settings={settings} dispatch={dispatch} onClose={close} session={session} />
       )}
@@ -204,12 +206,136 @@ function ResetSheet({
   );
 }
 
-function Sheet({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+const TIER_LABEL: Record<string, string> = {
+  "5min": "5분 단위",
+  "2h": "2시간 단위",
+  "1d": "하루 단위",
+  "1w": "일주일 단위",
+  "1m": "한 달 단위",
+  reset: "초기화 직전",
+  restore: "되돌리기 직전",
+};
+
+/** 백업 시각을 "오늘 14:05", "어제 09:30", "9월 25일 14:05"처럼 */
+function backupWhen(secs: number): string {
+  const d = new Date(secs * 1000);
+  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const day = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+  const diff = Math.round((day(new Date()) - day(d)) / 86_400_000);
+  if (diff === 0) return `오늘 ${hm}`;
+  if (diff === 1) return `어제 ${hm}`;
+  const year = d.getFullYear() === new Date().getFullYear() ? "" : `${d.getFullYear()}년 `;
+  return `${year}${d.getMonth() + 1}월 ${d.getDate()}일 ${hm}`;
+}
+
+/**
+ * 백업에서 되돌리기. 목록에서 고르면 확인을 한 번 더 받는다.
+ * 되돌리기 직전 상태는 backups\restore에 남으므로 되돌린 것도 다시 되돌릴 수 있다.
+ */
+function RestoreSheet({ dispatch, onClose, session }: { dispatch: Dispatch<Action>; onClose: () => void; session: Session }) {
+  const [list, setList] = useState<BackupInfo[] | null>(null);
+  const [pick, setPick] = useState<BackupInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let live = true;
+    (session.listBackups?.() ?? Promise.resolve([]))
+      .then((l) => live && setList(l))
+      .catch((e) => {
+        if (!live) return;
+        setList([]);
+        dispatch({ type: "toast", message: `백업 목록을 읽지 못했어요 · ${String(e)}`, error: true });
+      });
+    return () => {
+      live = false;
+    };
+  }, [session, dispatch]);
+
+  // 목록이 뜨면 첫 항목에 초점. 방향키로 옮기고 Enter로 고른다.
+  useEffect(() => {
+    if (list?.length && !pick) listRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+  }, [list, pick]);
+  function onListKey(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const els = [...listRef.current!.querySelectorAll<HTMLButtonElement>("button")];
+    const i = els.indexOf(document.activeElement as HTMLButtonElement);
+    const next = e.key === "ArrowDown" ? Math.min(els.length - 1, i + 1) : Math.max(0, i - 1);
+    els[next]?.focus();
+  }
+
+  async function restore(b: BackupInfo) {
+    setBusy(true);
+    try {
+      await session.restoreBackup?.(b.id);
+    } catch (e) {
+      setBusy(false);
+      dispatch({ type: "toast", message: `되돌리지 못했어요 · ${String(e)}`, error: true });
+    }
+  }
+
+  if (pick) {
+    return (
+      <div className="sheet" role="alertdialog" aria-label="백업에서 되돌리기">
+        <h4>{backupWhen(pick.secs)} 백업으로 되돌릴까요?</h4>
+        <p className="msg">노트와 화면 배치가 그때로 돌아가요. 노트 {pick.notes}개.</p>
+        <p className="note">
+          지금 노트는 데이터 폴더의 <code>{"backups\\restore"}</code>에 남겨 두니, 되돌린 것도 다시 되돌릴 수 있어요.
+        </p>
+        <div className="acts">
+          <button type="button" className="sbtn" autoFocus onClick={() => setPick(null)} disabled={busy}>
+            취소
+          </button>
+          <button type="button" className="sbtn danger" onClick={() => void restore(pick)} disabled={busy}>
+            되돌리기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Sheet title="백업에서 되돌리기" onClose={onClose} focusClose={!list?.length}>
+      {list === null ? (
+        <p className="msg">백업을 찾는 중…</p>
+      ) : list.length === 0 ? (
+        <p className="msg">아직 백업이 없어요. 앱을 켜 두면 5분마다 바뀐 게 있을 때 남아요.</p>
+      ) : (
+        <div className="backup-list" ref={listRef} onKeyDown={onListKey}>
+          {list.map((b) => (
+            <button type="button" key={b.id} onClick={() => setPick(b)}>
+              <span className="when">{backupWhen(b.secs)}</span>
+              <span className="meta">
+                {TIER_LABEL[b.tier] ?? b.tier} · 노트 {b.notes}개
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+function Sheet({
+  title,
+  onClose,
+  children,
+  wide,
+  focusClose = true,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  wide?: boolean;
+  /** 열릴 때 닫기 버튼에 초점을 둔다(안에서 초점을 따로 잡으면 false) */
+  focusClose?: boolean;
+}) {
   return (
     <div className={"sheet" + (wide ? " wide" : "")} role="dialog" aria-label={title}>
       <h4>
         {title}
-        <button type="button" className="ib" title="닫기" aria-label="닫기" autoFocus onClick={onClose}>
+        <button type="button" className="ib" title="닫기" aria-label="닫기" autoFocus={focusClose} onClick={onClose}>
           <IconX />
         </button>
       </h4>
@@ -371,6 +497,17 @@ function SettingsSheet({
             ))}
         </div>
         <span className="note">백업은 이 폴더의 backups에 5분·2시간·1일·1주·1달 단위로 남아요.</span>
+        {session.listBackups && (
+          <div>
+            <button
+              type="button"
+              className="sbtn"
+              onClick={() => dispatch({ type: "overlay", overlay: { kind: "restore" } })}
+            >
+              백업에서 되돌리기
+            </button>
+          </div>
+        )}
       </div>
     </Sheet>
   );

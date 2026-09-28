@@ -1,6 +1,16 @@
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 // Tauri 창 밖(브라우저에서 npm run dev)에서도 화면은 뜨도록 실패를 삼킨다.
+
+/** 창 배경에 Mica를 깐다(Windows 11). 깔았으면 true. 밝기가 바뀌면 다시 부른다. */
+export async function applyMica(dark: boolean): Promise<boolean> {
+  try {
+    return await invoke<boolean>("set_mica", { dark });
+  } catch {
+    return false; // Tauri 밖
+  }
+}
 
 export async function quitApp() {
   try {
