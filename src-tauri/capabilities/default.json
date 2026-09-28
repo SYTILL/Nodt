@@ -23,6 +23,7 @@
     "core:window:allow-show",
     "core:window:allow-hide",
     "core:window:allow-set-focus",
-    "dialog:allow-open"
+    "dialog:allow-open",
+    "core:window:allow-set-min-size"
   ]
 }

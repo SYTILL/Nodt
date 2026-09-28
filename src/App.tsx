@@ -10,7 +10,7 @@ import { TOAST_EVENT, type Session } from "./ui/session";
 import { SlashMenu } from "./ui/SlashMenu";
 import { TitleBar } from "./ui/TitleBar";
 import { changesLayout, withTransition } from "./ui/transition";
-import { applyBackdrop } from "./platform";
+import { applyBackdrop, applyMinSize } from "./platform";
 import { Workspace } from "./ui/Workspace";
 
 const TOAST_MS = 2600;
@@ -63,6 +63,8 @@ export default function App({ initial, onState, session }: Props) {
   const { theme, brightness, transparency, backdrop } = state.settings;
   const mode = brightness === "system" ? systemMode : brightness;
   useLayoutEffect(() => applyTheme(document.documentElement, theme, mode), [theme, mode]);
+  const { lines } = state.settings;
+  useEffect(() => void applyMinSize(lines), [lines]);
   // 배경 투명도: Mica 위에 깔리는 배경색의 진하기. 상단바는 배경보다 조금 더 비친다.
   useLayoutEffect(() => {
     const root = document.documentElement.style;

@@ -1,4 +1,6 @@
 import { Node } from "@tiptap/core";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from "@tiptap/react";
 import { LINK_NODE } from "../model/markdown";
 import { BROKEN_TARGET } from "../model/notes";
@@ -36,6 +38,30 @@ export const NodtLink = Node.create({
 
   // 앱 밖으로 복사할 때 글에는 남기지 않는다
   renderText: () => "",
+
+  // 링크 칩은 글자가 아니라서 글 선택(Shift+방향키, 끌기)에 들어가도 선택 배경이 칠해지지 않는다.
+  // 선택 범위 안의 링크에 표시를 달아 CSS로 선택된 모습을 그린다.
+  addProseMirrorPlugins() {
+    const type = this.type;
+    return [
+      new Plugin({
+        key: new PluginKey("nodtLinkSelection"),
+        props: {
+          decorations(state) {
+            const { from, to, empty } = state.selection;
+            if (empty) return null;
+            const decos: Decoration[] = [];
+            state.doc.nodesBetween(from, to, (n, pos) => {
+              if (n.type === type && pos >= from && pos + n.nodeSize <= to) {
+                decos.push(Decoration.node(pos, pos + n.nodeSize, { class: "in-selection" }));
+              }
+            });
+            return decos.length ? DecorationSet.create(state.doc, decos) : null;
+          },
+        },
+      }),
+    ];
+  },
 
   addNodeView() {
     return ReactNodeViewRenderer(LinkChipView, { as: "span", className: "lnk-wrap" });

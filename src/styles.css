@@ -573,6 +573,15 @@ body.panel-dragging * {
 .lnk-wrap {
   display: inline;
 }
+/* 글 선택 범위 안에 든 링크: 글자처럼 선택 배경을 칠한다 */
+.lnk-wrap.in-selection {
+  background: Highlight;
+  border-radius: 3px;
+}
+.lnk-wrap.in-selection .lnk {
+  outline: 1.5px solid var(--accent);
+  outline-offset: 1px;
+}
 
 /* ───── 링크 칩 ───── */
 .lnk {

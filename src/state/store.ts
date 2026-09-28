@@ -240,6 +240,42 @@ export function lineageStrength(dist: number | undefined): number {
   return dist === undefined ? 0 : Math.max(0, 1 - LINEAGE_STEP * dist);
 }
 
+/** 제목도 본문도 비어 있는 노트(막 만들고 아무것도 안 쓴 노트) */
+function isBlank(s: State, id: NoteId): boolean {
+  const n = s.notes[id];
+  if (!n || n.title.trim() || (s.tree.kids[id] ?? []).length) return false;
+  const c = n.doc.content ?? [];
+  return c.length === 0 || (c.length === 1 && c[0].type === "paragraph" && !c[0].content?.length);
+}
+
+/**
+ * 빈 노트를 없었던 일로 한다(Esc, Ctrl+W). 부모 본문에서 링크를 빼고 노트를 지운다. 되돌리기 알림은 없다.
+ * 부모가 있으면 부모로 초점을 돌려 링크가 있던 자리에서 이어 쓰게 한다.
+ */
+function discardBlank(s: State, id: NoteId): State {
+  const parent = s.tree.parent[id];
+  const notes: Notes = { ...s.notes };
+  delete notes[id];
+  if (parent) notes[parent] = { ...s.notes[parent], doc: removeLinks(s.notes[parent].doc, new Set([id])).doc, updated: nowIso() };
+  const open = new Set(s.open);
+  open.delete(id);
+  const minimized = new Set(s.minimized);
+  minimized.delete(id);
+  const panelHeights = { ...s.panelHeights };
+  delete panelHeights[id];
+  const next: State = {
+    ...setNotes(s, notes),
+    roots: s.roots.filter((r) => r !== id),
+    open,
+    minimized,
+    panelHeights,
+    active: parent ?? null,
+    warn: false,
+  };
+  // 최상위 노트면 선택 없음(패널이 사라지며 입력 초점도 빠진다)
+  return parent ? withFocus(next, parent, "restore") : next;
+}
+
 function withFocus(s: State, id: NoteId, where: FocusRequest["where"]): State {
   return { ...s, focus: { id, where, seq: (s.focus?.seq ?? 0) + 1 } };
 }
@@ -401,6 +437,8 @@ export function reducer(s: State, a: Action): State {
 
     case "closeActive": {
       if (!s.active || s.menu || s.overlay || s.moveOrigin) return s;
+      // 막 만들고 아무것도 안 쓴 노트는 없었던 일로
+      if (isBlank(s, s.active)) return discardBlank(s, s.active);
       // 최상위 노트는 닫는 대신 최소화한다(다시 누르면 복원)
       if (!s.tree.parent[s.active]) return withFocus(reducer(s, { type: "toggleMinimize", id: s.active }), s.active, "restore");
       const closed = closeNote(s, s.active);
@@ -510,6 +548,7 @@ export function reducer(s: State, a: Action): State {
       if (s.overlay) return { ...s, overlay: null };
       if (s.moveOrigin) return reducer(s, { type: "moveEnd", cancel: true });
       if (!s.active) return s;
+      if (isBlank(s, s.active)) return discardBlank(s, s.active);
       const closed = closeNote(s, s.active);
       return closed.active && closed.active !== s.active ? withFocus(closed, closed.active, "restore") : closed;
     }
