@@ -165,12 +165,12 @@ strong {
   cursor: grabbing;
   user-select: none;
 }
-/* Mica(Windows 11): 창 배경과 상단바를 반투명하게 해서 바탕화면 색이 은은하게 비치게 한다. 패널은 불투명 그대로. */
-html.mica body {
-  background: color-mix(in srgb, var(--bg) 55%, transparent);
+/* 배경 효과(Mica, Acrylic): 창 배경과 상단바를 반투명하게 해서 뒤가 비치게 한다. 패널은 불투명 그대로. */
+html.backdrop body {
+  background: color-mix(in srgb, var(--bg) var(--bg-mix, 55%), transparent);
 }
-html.mica .tbar {
-  background: color-mix(in srgb, var(--chrome) 45%, transparent);
+html.backdrop .tbar {
+  background: color-mix(in srgb, var(--chrome) var(--chrome-mix, 45%), transparent);
 }
 /* 노트가 하나도 없을 때 가운데 안내 */
 .empty-hint {
@@ -974,6 +974,21 @@ kbd {
 .opt input {
   margin: 0;
   accent-color: var(--accent);
+}
+/* 투명도 슬라이더 */
+.opt .slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.opt .slider input {
+  flex: 1;
+}
+.opt .slider output {
+  width: 40px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
 .swatch {
   width: 10px;

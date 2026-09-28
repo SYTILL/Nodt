@@ -10,7 +10,7 @@ import { TOAST_EVENT, type Session } from "./ui/session";
 import { SlashMenu } from "./ui/SlashMenu";
 import { TitleBar } from "./ui/TitleBar";
 import { changesLayout, withTransition } from "./ui/transition";
-import { applyMica } from "./platform";
+import { applyBackdrop } from "./platform";
 import { Workspace } from "./ui/Workspace";
 
 const TOAST_MS = 2600;
@@ -60,17 +60,23 @@ export default function App({ initial, onState, session }: Props) {
   }, [dispatch]);
 
   const systemMode = useSystemMode();
-  const { theme, brightness } = state.settings;
+  const { theme, brightness, transparency, backdrop } = state.settings;
   const mode = brightness === "system" ? systemMode : brightness;
   useLayoutEffect(() => applyTheme(document.documentElement, theme, mode), [theme, mode]);
-  // Mica가 깔리면 배경을 반투명하게 해서 바탕화면 색이 비치게 한다(styles.css의 .mica). 안 되면 불투명 그대로.
+  // 배경 투명도: Mica 위에 깔리는 배경색의 진하기. 상단바는 배경보다 조금 더 비친다.
+  useLayoutEffect(() => {
+    const root = document.documentElement.style;
+    root.setProperty("--bg-mix", `${100 - transparency}%`);
+    root.setProperty("--chrome-mix", `${Math.max(0, 90 - transparency)}%`);
+  }, [transparency]);
+  // 배경 효과가 깔리면 배경을 반투명하게 해서 뒤가 비치게 한다(styles.css의 .backdrop). 안 되면 불투명 그대로.
   useEffect(() => {
     let live = true;
-    void applyMica(mode === "dark").then((ok) => live && document.documentElement.classList.toggle("mica", ok));
+    void applyBackdrop(backdrop, mode === "dark").then((ok) => live && document.documentElement.classList.toggle("backdrop", ok));
     return () => {
       live = false;
     };
-  }, [mode]);
+  }, [backdrop, mode]);
 
   useEffect(() => {
     // 오류 알림은 읽고 닫을 때까지 남긴다

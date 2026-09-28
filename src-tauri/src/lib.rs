@@ -86,22 +86,31 @@ fn restore_backup(data_dir: String, id: String) -> Result<(), String> {
     storage::restore_backup(data_dir.as_ref(), &id, storage::now_secs()).map_err(err)
 }
 
-/// Windows 11(빌드 22000 이상)에서 창 배경에 Mica를 깐다. 앱의 밝기에 맞춰 밝은/어두운 Mica를 고른다.
-/// 적용했으면 true. false면 프론트엔드는 배경을 불투명하게 그린다(Windows 10 등).
+/// 창 배경 효과를 깐다. kind: "mica"(바탕화면 색이 은은하게), "acrylic"(뒤 창까지 뿌옇게), 그 밖은 끔.
+/// Mica는 Windows 11(빌드 22000 이상), Acrylic은 Windows 10 1809(빌드 17763) 이상에서 된다.
+/// Mica는 앱의 밝기에 맞춰 밝은/어두운 것을 고른다. 적용했으면 true. false면 프론트엔드는 배경을 불투명하게 그린다.
 #[tauri::command]
-fn set_mica(window: tauri::WebviewWindow, dark: bool) -> bool {
+fn set_backdrop(window: tauri::WebviewWindow, kind: String, dark: bool) -> bool {
     #[cfg(windows)]
     {
         use tauri::window::{Effect, EffectsBuilder};
-        if windows_version::OsVersion::current().build < 22000 {
-            return false;
+        let build = windows_version::OsVersion::current().build;
+        let effect = match kind.as_str() {
+            "mica" if build >= 22000 => Some(if dark { Effect::MicaDark } else { Effect::MicaLight }),
+            "acrylic" if build >= 17763 => Some(Effect::Acrylic),
+            _ => None,
+        };
+        match effect {
+            Some(e) => window.set_effects(EffectsBuilder::new().effect(e).build()).is_ok(),
+            None => {
+                let _ = window.set_effects(None);
+                false
+            }
         }
-        let effect = if dark { Effect::MicaDark } else { Effect::MicaLight };
-        window.set_effects(EffectsBuilder::new().effect(effect).build()).is_ok()
     }
     #[cfg(not(windows))]
     {
-        let _ = (window, dark);
+        let _ = (window, kind, dark);
         false
     }
 }
@@ -163,7 +172,7 @@ pub fn run() {
             backup_before_reset,
             list_backups,
             restore_backup,
-            set_mica
+            set_backdrop
         ])
         .setup(|app| {
             restore_window(app.handle());

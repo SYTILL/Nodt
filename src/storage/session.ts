@@ -55,6 +55,8 @@ export function normalizeSettings(raw: unknown): Settings {
   if (typeof r.lines === "boolean") s.lines = r.lines;
   if (THEMES.some((t) => t.id === r.theme)) s.theme = r.theme as Settings["theme"];
   if (r.brightness === "light" || r.brightness === "dark" || r.brightness === "system") s.brightness = r.brightness;
+  if (r.backdrop === "mica" || r.backdrop === "acrylic" || r.backdrop === "none") s.backdrop = r.backdrop;
+  if (typeof r.transparency === "number" && Number.isFinite(r.transparency)) s.transparency = Math.max(0, Math.min(100, Math.round(r.transparency)));
   return s;
 }
 

@@ -25,12 +25,17 @@ const EXPAND_CONFIRM_OVER = 30;
 const LINEAGE_STEP = 0.3;
 
 export type Brightness = "light" | "dark" | "system";
+/** 창 배경 효과(Windows). none이면 불투명한 배경 */
+export type Backdrop = "mica" | "acrylic" | "none";
 
 export interface Settings {
   openMode: "add" | "replace";
   lines: boolean;
   theme: ThemeId;
   brightness: Brightness;
+  backdrop: Backdrop;
+  /** 창 배경 투명도(0~100). 배경 효과가 깔렸을 때만 보인다. 100이면 효과만 남는다. */
+  transparency: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -38,6 +43,8 @@ export const DEFAULT_SETTINGS: Settings = {
   lines: true,
   theme: "teal",
   brightness: "system",
+  backdrop: "mica",
+  transparency: 45,
 };
 
 export type Dir = "left" | "right" | "up" | "down";

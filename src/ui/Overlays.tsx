@@ -472,6 +472,38 @@ function SettingsSheet({
         />
       </div>
       <div className="opt">
+        <span className="lbl">배경 효과</span>
+        <Radios
+          name="backdrop"
+          value={settings.backdrop}
+          onChange={(backdrop) => set({ backdrop })}
+          options={[
+            ["mica", "Mica"],
+            ["acrylic", "Acrylic"],
+            ["none", "끄기"],
+          ]}
+        />
+        <span className="note">Mica는 바탕화면 색이 은은하게, Acrylic은 뒤에 있는 창까지 뿌옇게 비쳐요.</span>
+      </div>
+      {settings.backdrop !== "none" && (
+        <div className="opt">
+          <span className="lbl">배경 투명도</span>
+          <div className="slider">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={settings.transparency}
+              aria-label="배경 투명도"
+              onChange={(e) => set({ transparency: Number(e.target.value) })}
+            />
+            <output>{settings.transparency}%</output>
+          </div>
+          <span className="note">창 배경과 상단바에 바탕화면 색이 비치는 정도예요. 패널은 그대로예요.</span>
+        </div>
+      )}
+      <div className="opt">
         <span className="lbl">데이터 폴더</span>
         <div className="folder">
           <input
