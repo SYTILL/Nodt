@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nodt 아이콘</title>
+<style>
+  :root {
+    --bg: #f1f6f5;
+    --text: #16211f;
+    --muted: #5f706c;
+    --line: #dae5e3;
+  }
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 "IBM Plex Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.lead { margin: 0 0 20px; color: var(--muted); }
+  .controls { display: flex; flex-wrap: wrap; gap: 16px 24px; margin-bottom: 20px; }
+  .controls label { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .controls output { width: 2.5em; color: var(--text); font-variant-numeric: tabular-nums; }
+  .card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    max-width: 880px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 2px; }
+  .card .note { color: var(--muted); margin: 0 0 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .strip {
+    display: flex; align-items: flex-end; gap: 18px;
+    padding: 14px 18px; border-radius: 6px;
+  }
+  .strip.light { background: #eef0f3; }
+  .strip.dark { background: #1f1f1f; }
+  .strip figure { margin: 0; display: grid; justify-items: center; gap: 6px; }
+  .strip figcaption { font-size: 11px; color: #8a9491; }
+  .big { width: 160px; height: 160px; }
+</style>
+</head>
+<body>
+<h1>Nodt 아이콘 시안</h1>
+<p class="lead">노트 패널 모양: 둥근 정사각형 + 청록 상단바 + 가운데 &gt;. 16~48px은 윈도우 작업표시줄·창 제목·알림 영역에서 실제로 보이는 크기다.</p>
+
+<div class="controls">
+  <label>상단바 두께 <input id="bar" type="range" min="0" max="34" value="24" /><output id="barv"></output></label>
+  <label>모서리 둥글기 <input id="rad" type="range" min="8" max="30" value="20" /><output id="radv"></output></label>
+  <label>테두리 굵기 <input id="border" type="range" min="0" max="12" step="0.5" value="5" /><output id="borderv"></output></label>
+  <label>&gt; 굵기 <input id="stroke" type="range" min="6" max="14" value="10" /><output id="strokev"></output></label>
+  <label>&gt; 높이 <input id="chev" type="range" min="16" max="48" value="28" /><output id="chevv"></output></label>
+  <label>&gt; 색 <select id="ink"><option value="#0e7c72">청록</option><option value="#16211f">검정</option></select></label>
+  <label>&gt; 위치(위아래) <input id="dy" type="range" min="-20" max="20" step="0.5" value="0" /><output id="dyv"></output></label>
+</div>
+
+<div id="variants"></div>
+
+<script>
+const ACCENT = "#0e7c72";
+const WHITE = "#ffffff";
+
+// 100x100 좌표. 바깥 여백 6은 윈도우 아이콘들이 보통 두는 숨 쉴 자리다.
+function svg(variant, o) {
+  const x = 6, w = 88, ink = o.ink, r = o.rad, bar = o.bar, sw = o.stroke, h = o.chev / 2;
+  // 몸통 가운데는 상단바와 아래 테두리 사이의 가운데다
+  // dy는 몸통 가운데에서 위(-)나 아래(+)로 옮기는 양이다
+  const bodyTop = x + bar, cy = (bodyTop + x + w - o.border) / 2 + o.dy;
+  const clip = `<clipPath id="c"><rect x="${x}" y="${x}" width="${w}" height="${w}" rx="${r}"/></clipPath>`;
+  // 선은 가장자리 가운데에 그려지므로 두 배 굵기로 그리고 바깥 절반을 잘라낸다
+  const frame = o.border === 0 ? "" :
+    `<rect x="${x}" y="${x}" width="${w}" height="${w}" rx="${r}" fill="none" stroke="${ACCENT}" stroke-width="${o.border * 2}" clip-path="url(#c)"/>`;
+  const topBar = `<rect x="${x}" y="${x}" width="${w}" height="${bar}" fill="${ACCENT}" clip-path="url(#c)"/>`;
+  const chev = (s, color, width) =>
+    `<path d="M${50 - s * 0.45} ${cy - s} L${50 + s * 0.55} ${cy} L${50 - s * 0.45} ${cy + s}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+  let inner;
+  if (variant === "A") {
+    // 흰 몸통, 청록 테두리·상단바, 가운데 >
+    inner = `<rect x="${x}" y="${x}" width="${w}" height="${w}" rx="${r}" fill="${WHITE}"/>${topBar}${frame}${chev(h, ink, sw)}`;
+  } else if (variant === "B" || variant === "D") {
+    // 링크 칩. B는 닫힌 칩(채운 원에 흰 >), D는 색을 뒤집은 열린 칩(테두리 원에 색 >)
+    const ring = sw * 0.6;
+    const cr = Math.min(h * 1.5, (x + w - o.border - bodyTop) / 2 - 2 - (variant === "D" ? ring / 2 : 0));
+    const chip = variant === "B"
+      ? `<circle cx="50" cy="${cy}" r="${cr}" fill="${ink}"/>${chev(cr * 0.42, WHITE, sw * 0.75)}`
+      : `<circle cx="50" cy="${cy}" r="${cr}" fill="none" stroke="${ink}" stroke-width="${ring}"/>${chev(cr * 0.42, ink, sw * 0.75)}`;
+    inner = `<rect x="${x}" y="${x}" width="${w}" height="${w}" rx="${r}" fill="${WHITE}"/>${topBar}${frame}${chip}`;
+  } else {
+    // 반전: 청록 몸통, 흰 >. 상단바는 몸통보다 진한 청록
+    inner = `<rect x="${x}" y="${x}" width="${w}" height="${w}" rx="${r}" fill="${ACCENT}"/>` +
+      `<rect x="${x}" y="${x}" width="${w}" height="${bar}" fill="#0a5c55" clip-path="url(#c)"/>${chev(h, WHITE, sw)}`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs>${clip}</defs>${inner}</svg>`;
+}
+
+const VARIANTS = [
+  ["A", "A. 흰 패널 + >", "패널 모양을 가장 그대로 옮긴 것. 추천."],
+  ["B", "B. 흰 패널 + 링크 칩", "앱 안의 닫힌 링크 칩(채운 원). 작은 크기에서 원이 뭉개지기 쉽다."],
+  ["D", "D. 흰 패널 + 반전 링크 칩", "앱 안의 열린 링크 칩처럼 테두리 원에 색 >. 원 테두리 굵기는 > 굵기를 따른다."],
+  ["C", "C. 청록 채움 + 흰 >", "작업표시줄에서 가장 눈에 띄지만 '패널' 느낌은 약하다."],
+];
+const SIZES = [16, 24, 32, 48, 64];
+
+function render() {
+  const o = { bar: +bar.value, rad: +rad.value, stroke: +stroke.value, border: +border.value, chev: +chev.value, dy: +dy.value, ink: ink.value };
+  barv.textContent = o.bar; radv.textContent = o.rad; strokev.textContent = o.stroke; borderv.textContent = o.border; chevv.textContent = o.chev; dyv.textContent = o.dy;
+  variants.innerHTML = VARIANTS.map(([id, title, note]) => {
+    const url = "data:image/svg+xml," + encodeURIComponent(svg(id, o));
+    const strip = (cls) => `<div class="strip ${cls}">` +
+      SIZES.map((s) => `<figure><img src="${url}" width="${s}" height="${s}" alt=""><figcaption>${s}</figcaption></figure>`).join("") +
+      `</div>`;
+    return `<section class="card"><h2>${title}</h2><p class="note">${note}</p>` +
+      `<div class="row"><img class="big" src="${url}" alt="${title}">${strip("light")}${strip("dark")}</div></section>`;
+  }).join("");
+}
+for (const el of [bar, rad, stroke, border, chev, dy, ink]) el.addEventListener("input", render);
+render();
+</script>
+</body>
+</html>

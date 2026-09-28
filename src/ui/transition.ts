@@ -20,6 +20,7 @@ const LAYOUT_ACTIONS = new Set<Action["type"]>([
   "expandAll",
   "collapseAll",
   "reorder",
+  "fixBroken",
 ]);
 
 /** 패널 끌기 중에 임시로 옮겨 둔 패널 표시. 전환 직전에 걷어낸다. */

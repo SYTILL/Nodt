@@ -1,46 +1,42 @@
-import { useLayoutEffect, useRef, useState, type Dispatch, type KeyboardEvent } from "react";
+import { Fragment, useLayoutEffect, useRef, useState, type Dispatch, type KeyboardEvent } from "react";
 import { descendants } from "../model/notes";
 import type { Action, State } from "../state/store";
 
-// 패널 상단바 우클릭 메뉴. 방향키로 항목을 옮기고 Enter로 고른다. Esc나 바깥 클릭으로 닫힌다.
+// 드롭다운 메뉴. 방향키로 항목을 옮기고 Enter로 고른다. Esc나 바깥 클릭으로 닫힌다.
 
-interface Props {
-  menu: NonNullable<State["menu"]>;
-  state: State;
-  dispatch: Dispatch<Action>;
+interface Item {
+  label: string;
+  action: Action;
+  disabled?: boolean;
+  danger?: boolean;
+  /** 이 항목 위에 구분선 */
+  separated?: boolean;
 }
 
-export function PanelMenu({ menu, state, dispatch }: Props) {
+function Dropdown({ x, y, items, dispatch }: { x: number; y: number; items: Item[]; dispatch: Dispatch<Action> }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: menu.x, top: menu.y });
+  const [pos, setPos] = useState({ left: x, top: y });
 
   // 창 밖으로 나가지 않게 위치를 맞추고 첫 항목에 포커스를 둔다
   useLayoutEffect(() => {
     const el = ref.current!;
     const pad = 8;
     setPos({
-      left: Math.min(menu.x, window.innerWidth - el.offsetWidth - pad),
-      top: Math.min(menu.y, window.innerHeight - el.offsetHeight - pad),
+      left: Math.min(x, window.innerWidth - el.offsetWidth - pad),
+      top: Math.min(y, window.innerHeight - el.offsetHeight - pad),
     });
     el.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-  }, [menu]);
+  }, [x, y]);
 
-  const id = menu.id;
-  const isRoot = id === state.rootId;
-  const desc = descendants(state.tree, id);
   const close = () => dispatch({ type: "menu", menu: null });
-  const run = (a: Action) => {
-    close();
-    dispatch(a);
-  };
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
-    const items = [...ref.current!.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
-    const i = items.indexOf(document.activeElement as HTMLButtonElement);
-    const next = e.key === "ArrowDown" ? (i + 1) % items.length : (i - 1 + items.length) % items.length;
-    items[next]?.focus();
+    const els = [...ref.current!.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
+    const i = els.indexOf(document.activeElement as HTMLButtonElement);
+    const next = e.key === "ArrowDown" ? (i + 1) % els.length : (i - 1 + els.length) % els.length;
+    els[next]?.focus();
   }
 
   return (
@@ -55,27 +51,59 @@ export function PanelMenu({ menu, state, dispatch }: Props) {
       }}
     >
       <div className="cmenu" ref={ref} role="menu" style={pos} onKeyDown={onKeyDown}>
-        <button type="button" role="menuitem" disabled={desc.length === 0} onClick={() => run({ type: "expandAll", id })}>
-          하위 전체 펼치기
-        </button>
-        <button
-          type="button"
-          role="menuitem"
-          disabled={!desc.some((k) => state.open.has(k))}
-          onClick={() => run({ type: "collapseAll", id })}
-        >
-          하위 전체 접기
-        </button>
-        {/* 최상위 노트는 삭제할 수 없다 */}
-        {!isRoot && (
-          <>
-            <div className="sep" role="separator" />
-            <button type="button" role="menuitem" className="danger" onClick={() => run({ type: "delete", id })}>
-              노트 삭제
+        {items.map((it) => (
+          <Fragment key={it.label}>
+            {it.separated && <div className="sep" role="separator" />}
+            <button
+              type="button"
+              role="menuitem"
+              className={it.danger ? "danger" : undefined}
+              disabled={it.disabled}
+              onClick={() => {
+                close();
+                dispatch(it.action);
+              }}
+            >
+              {it.label}
             </button>
-          </>
-        )}
+          </Fragment>
+        ))}
       </div>
     </div>
   );
+}
+
+/** 패널 상단바 우클릭 메뉴, 깨진 링크 클릭 메뉴 */
+export function PanelMenu({
+  menu,
+  state,
+  dispatch,
+}: {
+  menu: NonNullable<State["menu"]>;
+  state: State;
+  dispatch: Dispatch<Action>;
+}) {
+  if (menu.kind === "broken") {
+    const { parent, n } = menu;
+    return (
+      <Dropdown
+        x={menu.x}
+        y={menu.y}
+        dispatch={dispatch}
+        items={[
+          { label: "새 노트로 만들기", action: { type: "fixBroken", parent, n } },
+          { label: "삭제", action: { type: "removeBroken", parent, n }, danger: true, separated: true },
+        ]}
+      />
+    );
+  }
+  const id = menu.id;
+  const desc = descendants(state.tree, id);
+  const items: Item[] = [
+    { label: "하위 전체 펼치기", action: { type: "expandAll", id }, disabled: desc.length === 0 },
+    { label: "하위 전체 접기", action: { type: "collapseAll", id }, disabled: !desc.some((k) => state.open.has(k)) },
+  ];
+  // 최상위 노트는 삭제할 수 없다
+  if (id !== state.rootId) items.push({ label: "노트 삭제", action: { type: "delete", id }, danger: true, separated: true });
+  return <Dropdown x={menu.x} y={menu.y} items={items} dispatch={dispatch} />;
 }

@@ -106,3 +106,13 @@ export const IconWinClose = () => (
     <path d="M.5.5l9 9M9.5.5l-9 9" />
   </WinSvg>
 );
+
+// 프로그램 아이콘(docs/design/icon/nodt-E.svg)과 같은 N 마크. 색은 테마를 따르고,
+// 대각선은 강조색을 패널색에 반쯤 섞어 원본의 연한 색을 낸다. 원본 여백은 viewBox로 잘라냈다.
+export const IconLogo = () => (
+  <svg className="logo" viewBox="60 60 904 904" aria-hidden="true">
+    <path d="M335 150 L630 450 Q680 500 680 560 V890 L340 555 Z" fill="color-mix(in srgb, var(--accent) 50%, var(--panel))" />
+    <path d="M75 860 V210 A132.5 132.5 0 0 1 340 210 V760 Q340 800 300 815 L110 885 Q75 897 75 860 Z" fill="var(--accent)" />
+    <path d="M680 280 Q680 228 728 211 L905 150 Q950 135 950 185 V810 A135 135 0 0 1 680 810 Z" fill="var(--accent)" />
+  </svg>
+);

@@ -4,6 +4,7 @@ import {
   isInSubtree,
   moveLink,
   removeLink,
+  replaceBroken,
   type Note,
   type NoteId,
   type Notes,
@@ -56,8 +57,11 @@ export interface State {
   open: ReadonlySet<NoteId>;
   /** 제목줄만 남기고 접은 패널. 하위 패널도 화면에서 빠지지만 열림 상태는 그대로 기억한다. */
   minimized: ReadonlySet<NoteId>;
-  /** 패널 상단바 우클릭 메뉴 */
-  menu: { id: NoteId; x: number; y: number } | null;
+  /** 드롭다운 메뉴. 패널 상단바 우클릭, 또는 깨진 링크 클릭(parent 본문의 n번째 깨진 링크) */
+  menu:
+    | { kind: "panel"; id: NoteId; x: number; y: number }
+    | { kind: "broken"; parent: NoteId; n: number; x: number; y: number }
+    | null;
   active: NoteId;
   /** 최상위 노트에서 Esc를 눌렀을 때의 경고 */
   warn: boolean;
@@ -80,6 +84,8 @@ export type Action =
   | { type: "delete"; id: NoteId }
   | { type: "undoDelete" }
   | { type: "menu"; menu: State["menu"] }
+  | { type: "fixBroken"; parent: NoteId; n: number }
+  | { type: "removeBroken"; parent: NoteId; n: number }
   /** 같은 부모의 보이는 형제 패널 사이에서 순서를 바꾼다. index는 보이는 형제 중 새 자리 */
   | { type: "reorder"; id: NoteId; index: number }
   | { type: "expandAll"; id: NoteId; confirmed?: boolean }
@@ -316,8 +322,26 @@ export function reducer(s: State, a: Action): State {
       return { ...s, notes, tree: buildTree(notes) };
     }
 
-    case "menu":
-      return { ...s, menu: a.menu, active: a.menu ? a.menu.id : s.active, warn: false };
+    case "menu": {
+      const active = !a.menu ? s.active : a.menu.kind === "panel" ? a.menu.id : a.menu.parent;
+      return { ...s, menu: a.menu, active, warn: false };
+    }
+
+    case "fixBroken": {
+      // 깨진 링크 자리에 빈 새 노트를 만들어 잇고 연다
+      const id = crypto.randomUUID();
+      const body = replaceBroken(s.notes[a.parent]?.body ?? "", s.notes, a.n, `[>](nodt:${id})`);
+      if (body === null) return s;
+      const notes: Notes = { ...s.notes, [a.parent]: { ...s.notes[a.parent], body }, [id]: { id, title: "", body: "" } };
+      return { ...s, notes, tree: buildTree(notes), open: new Set([...s.open, id]), active: id, warn: false };
+    }
+
+    case "removeBroken": {
+      const body = replaceBroken(s.notes[a.parent]?.body ?? "", s.notes, a.n, null);
+      if (body === null) return s;
+      const notes: Notes = { ...s.notes, [a.parent]: { ...s.notes[a.parent], body } };
+      return { ...s, notes, tree: buildTree(notes) };
+    }
 
     case "escape":
       // 메뉴, 오버레이, 모드가 떠 있으면 그것부터 닫는다

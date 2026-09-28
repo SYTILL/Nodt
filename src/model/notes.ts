@@ -61,6 +61,22 @@ export function moveLink(body: string, id: NoteId, target: NoteId, where: "befor
   return cut.body.slice(0, at) + ins + cut.body.slice(at);
 }
 
+/**
+ * 본문의 n번째 깨진 링크(가리키는 노트가 없는 링크)를 replacement로 바꾼다.
+ * replacement가 null이면 링크와 앞 공백 하나를 지운다. 못 찾으면 null.
+ */
+export function replaceBroken(body: string, notes: Notes, n: number, replacement: string | null): string | null {
+  let seen = 0;
+  for (const m of body.matchAll(LINK_RE)) {
+    if (m[1] in notes) continue;
+    if (seen++ !== n) continue;
+    let start = m.index;
+    if (replacement === null && body[start - 1] === " ") start--;
+    return body.slice(0, start) + (replacement ?? "") + body.slice(m.index + m[0].length);
+  }
+  return null;
+}
+
 export function buildTree(notes: Notes): Tree {
   const kids: Tree["kids"] = {};
   const parent: Tree["parent"] = {};

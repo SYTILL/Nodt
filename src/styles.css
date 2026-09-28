@@ -95,11 +95,18 @@ strong {
 /* 글자를 눌러도 상단바가 눌린 것으로 쳐서 창을 끌 수 있게 한다 */
 .tbar .brand {
   flex: 1;
-  padding-left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-left: 12px;
   color: var(--text);
   font-weight: 600;
   letter-spacing: 0.02em;
   pointer-events: none;
+}
+.tbar .logo {
+  width: 16px;
+  height: 16px;
 }
 /* 프로그램 상단바 아이콘은 조금 크게. 14px에서는 톱니바퀴가 해처럼 보인다 */
 .tbar-acts .ib svg {

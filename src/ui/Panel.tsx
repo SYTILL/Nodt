@@ -57,7 +57,7 @@ export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidt
         onPointerDown={onHeadPointerDown}
         onContextMenu={(e) => {
           e.preventDefault();
-          dispatch({ type: "menu", menu: { id, x: e.clientX, y: e.clientY } });
+          dispatch({ type: "menu", menu: { kind: "panel", id, x: e.clientX, y: e.clientY } });
         }}
       >
         <div className={"ptitle" + (note.title ? "" : " empty")}>{note.title || "제목 없음"}</div>
@@ -74,7 +74,7 @@ export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidt
       {!minimized && (
         <>
           <div className="pbody">
-            <NoteBody body={note.body} notes={state.notes} open={state.open} dispatch={dispatch} />
+            <NoteBody noteId={id} body={note.body} notes={state.notes} open={state.open} dispatch={dispatch} />
           </div>
           <HeightGrip onCommit={(h) => dispatch({ type: "panelHeight", id, height: h })} />
         </>

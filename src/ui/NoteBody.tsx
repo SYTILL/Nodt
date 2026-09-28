@@ -21,9 +21,13 @@ function parseBlocks(md: string): Block[] {
 }
 
 interface Ctx {
+  /** 이 본문의 노트 */
+  noteId: NoteId;
   notes: Notes;
   open: ReadonlySet<NoteId>;
   dispatch: Dispatch<Action>;
+  /** 그리는 동안 깨진 링크 순서를 센다 */
+  brokenSeq: { n: number };
 }
 
 const INLINE_RE = /\*\*(.+?)\*\*|~~(.+?)~~|\[>\]\(nodt:([^)\s]+)\)/g;
@@ -36,14 +40,15 @@ function renderInline(text: string, ctx: Ctx): ReactNode[] {
     const key = m.index;
     if (m[1] !== undefined) out.push(<b key={key}>{renderInline(m[1], ctx)}</b>);
     else if (m[2] !== undefined) out.push(<s key={key}>{renderInline(m[2], ctx)}</s>);
-    else out.push(<LinkChip key={key} target={m[3]} ctx={ctx} />);
+    else out.push(<LinkChip key={key} target={m[3]} ctx={ctx} brokenIndex={m[3] in ctx.notes ? -1 : ctx.brokenSeq.n++} />);
     last = m.index + m[0].length;
   }
   if (last < text.length) out.push(text.slice(last));
   return out;
 }
 
-function LinkChip({ target, ctx }: { target: string; ctx: Ctx }) {
+/** brokenIndex: 이 본문에서 몇 번째 깨진 링크인지. 깨진 링크를 고칠 때 자리를 찾는 데 쓴다 */
+function LinkChip({ target, ctx, brokenIndex }: { target: string; ctx: Ctx; brokenIndex: number }) {
   const note = ctx.notes[target];
   if (!note) {
     return (
@@ -53,7 +58,11 @@ function LinkChip({ target, ctx }: { target: string; ctx: Ctx }) {
         aria-label="깨진 링크"
         onClick={(e) => {
           e.stopPropagation();
-          ctx.dispatch({ type: "toast", message: "깨진 링크 · Ctrl+Enter: 새 노트로 만들기 · Backspace: 삭제" });
+          const r = e.currentTarget.getBoundingClientRect();
+          ctx.dispatch({
+            type: "menu",
+            menu: { kind: "broken", parent: ctx.noteId, n: brokenIndex, x: r.left, y: r.bottom + 4 },
+          });
         }}
       >
         <IconX />
@@ -78,8 +87,9 @@ function LinkChip({ target, ctx }: { target: string; ctx: Ctx }) {
   );
 }
 
-export function NoteBody(props: { body: string } & Ctx) {
-  const { body, ...ctx } = props;
+export function NoteBody(props: { body: string } & Omit<Ctx, "brokenSeq">) {
+  const { body, ...rest } = props;
+  const ctx: Ctx = { ...rest, brokenSeq: { n: 0 } };
   return (
     <>
       {parseBlocks(body).map((b, i) => {

@@ -1,7 +1,7 @@
 import { useEffect, useState, type Dispatch } from "react";
 import { minimizeWindow, quitApp, toggleMaximizeWindow, watchMaximized } from "../platform";
 import type { Action } from "../state/store";
-import { IconGear, IconHelp, IconWinClose, IconWinMaximize, IconWinMinimize, IconWinRestore } from "./icons";
+import { IconGear, IconHelp, IconLogo, IconWinClose, IconWinMaximize, IconWinMinimize, IconWinRestore } from "./icons";
 
 // 테두리 없는 창의 자체 상단바. 빈 곳을 끌면 창이 움직이고, 두 번 누르면 최대화된다.
 
@@ -26,7 +26,10 @@ export function TitleBar({ warn, dispatch }: Props) {
 
   return (
     <div className="tbar" data-tauri-drag-region>
-      <span className="brand">Nodt</span>
+      <span className="brand">
+        <IconLogo />
+        Nodt
+      </span>
       <div className="tbar-acts">
         <button
           type="button"
