@@ -25,6 +25,7 @@
 
 ## 개발 명령
 - `npm run tauri dev`: 앱 창으로 실행한다. 데이터는 `문서\Nodt`에 저장된다.
+- `npm run dev:fresh`: 완전 처음 켠 상태로 앱을 띄운다. `%TEMP%\nodt-fresh`를 비우고 데이터·설정 폴더로 쓴다(진짜 노트는 안 건드림).
 - `npm run dev`: 브라우저에서 본다(http://localhost:1420). 파일 대신 localStorage에 저장한다. `?sample`을 붙이면 저장하지 않는 샘플 노트로 뜬다.
 - `npm run build`: 타입 검사와 프론트엔드 빌드를 한다.
 - `cargo test --lib` (src-tauri 안): 파일 저장과 백업 테스트.

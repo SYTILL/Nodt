@@ -164,7 +164,8 @@ export interface Tutorial {
   open: Set<NoteId>;
   minimized: Set<NoteId>;
   active: NoteId;
-  panelHeights: Record<NoteId, number>;
+  /** 처음 보일 때 내용에 맞춰 높이를 정할 패널 */
+  fit: Set<NoteId>;
 }
 
 export function createTutorial(): Tutorial {
@@ -185,7 +186,7 @@ export function createTutorial(): Tutorial {
     ),
     minimized: new Set(keys(["links", "ex1", "ex2"])),
     active: ids.start,
-    // 처음 보는 패널은 내용이 다 보이게 기본 높이보다 크게
-    panelHeights: { [ids.root]: 360, [ids.start]: 272, [ids.ex1]: 250, [ids.ex2]: 300 },
+    // 높이는 정해 두지 않고, 처음 보일 때 내용이 다 보이게 잰다(글꼴, 배율이 달라도 잘리지 않게)
+    fit: new Set(Object.values(ids)),
   };
 }

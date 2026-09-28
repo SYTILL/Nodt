@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { currentMonitor, getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import type { Backdrop } from "./state/store";
 
 // Tauri 창 밖(브라우저에서 npm run dev)에서도 화면은 뜨도록 실패를 삼킨다.
@@ -52,6 +52,32 @@ export async function applyMinSize(lines: boolean) {
     await getCurrentWindow().setMinSize(new LogicalSize(Math.max(PANEL_W + gap * 2, CHROME_MIN_W), CHROME_H + PANEL_H + gap * 2));
   } catch {
     // Tauri 밖
+  }
+}
+
+/**
+ * 창을 dw, dh(논리 픽셀)만큼 키운다. 모니터 작업 영역을 넘지 않고, 키웠으면 가운데로 옮긴다.
+ * 사용법 노트가 창보다 클 때 쓴다. 최대화돼 있으면 그대로 둔다. 키웠으면 true.
+ */
+export async function growWindow(dw: number, dh: number): Promise<boolean> {
+  try {
+    const win = getCurrentWindow();
+    if (await win.isMaximized()) return false;
+    const cur = (await win.innerSize()).toLogical(await win.scaleFactor());
+    let w = cur.width + dw;
+    let h = cur.height + dh;
+    const mon = await currentMonitor();
+    if (mon) {
+      const area = mon.workArea.size.toLogical(mon.scaleFactor);
+      w = Math.min(w, area.width - 16);
+      h = Math.min(h, area.height - 16);
+    }
+    if (w <= cur.width && h <= cur.height) return false;
+    await win.setSize(new LogicalSize(Math.ceil(Math.max(w, cur.width)), Math.ceil(Math.max(h, cur.height))));
+    await win.center();
+    return true;
+  } catch {
+    return false; // Tauri 밖
   }
 }
 

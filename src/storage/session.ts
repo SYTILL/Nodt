@@ -34,6 +34,8 @@ interface StoredState {
   active: NoteId | null;
   colWidths: Record<number, number>;
   panelHeights: Record<NoteId, number>;
+  /** 아직 내용에 맞춰 높이를 재지 않은 패널 */
+  fit?: NoteId[];
   view: View;
   window?: WindowGeom;
 }
@@ -68,7 +70,8 @@ export function freshState(settings: Settings): State {
     open: t.open,
     minimized: t.minimized,
     active: t.active,
-    panelHeights: t.panelHeights,
+    fit: t.fit,
+    fresh: true,
   });
 }
 
@@ -124,6 +127,7 @@ export async function boot(backend: Backend): Promise<Booted> {
     active: stored?.active && live.has(stored.active) ? stored.active : stored?.version === 2 ? null : (roots[0] ?? null),
     colWidths: stored?.colWidths ?? {},
     panelHeights: Object.fromEntries(Object.entries(stored?.panelHeights ?? {}).filter(([k]) => has(k))),
+    fit: new Set((stored?.fit ?? []).filter(has)),
     view: stored?.view ?? { x: 0, y: 0, z: 1 },
   });
   return { state, dataDir, config: { ...config, dataDir }, texts, window: stored?.window };
@@ -138,6 +142,7 @@ function storedState(s: State, window: WindowGeom | undefined): StoredState {
     active: s.active,
     colWidths: s.colWidths,
     panelHeights: s.panelHeights,
+    ...(s.fit.size ? { fit: [...s.fit] } : {}),
     view: s.view,
     ...(window ? { window } : {}),
   };

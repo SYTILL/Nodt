@@ -172,6 +172,11 @@ html.backdrop body {
 html.backdrop .tbar {
   background: color-mix(in srgb, var(--chrome) var(--chrome-mix, 45%), transparent);
 }
+/* 앱을 열 때: 패널이 하나씩 나타나기 전까지 숨겨 둔다(Workspace.tsx) */
+.ws.intro .cols .panel,
+.ws.intro .wires {
+  opacity: 0;
+}
 /* 노트가 하나도 없을 때 가운데 안내 */
 .empty-hint {
   position: absolute;

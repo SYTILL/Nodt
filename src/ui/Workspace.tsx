@@ -1,8 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, type Dispatch, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type PointerEvent } from "react";
+import { flushSync } from "react-dom";
+import { growWindow } from "../platform";
 import { columns, lineage, lineageStrength, type Action, type State, type View } from "../state/store";
 import { Panel } from "./Panel";
 import { startPanelDrag } from "./panelDrag";
-import { RELAYOUT_EVENT, resist, scaleOf, SETTLED_EVENT } from "./transition";
+import { followWhileRunning, RELAYOUT_EVENT, resist, scaleOf, SETTLED_EVENT } from "./transition";
 
 // 패널 영역. 창과 분리해 두어서 v0.2 플로팅 모드에서 창 배경만 투명하게 바꿀 수 있게 한다.
 // 스크롤 대신 캔버스처럼 쓴다. 빈 곳을 끌면 전체가 움직이고, 휠로 확대·축소한다.
@@ -30,6 +32,18 @@ const MIN_SPEED = 0.02;
 const VELOCITY_WINDOW = 80;
 /** 빈 곳을 이만큼(px) 안에서 눌렀다 떼면 끌기가 아니라 클릭이다 */
 const CLICK_SLOP = 4;
+/** 기본 패널 높이(styles.css의 --ph). 내용에 맞출 때 이보다 작게 줄이지는 않는다 */
+const PANEL_H = 200;
+/** 내용에 맞출 때 가장 큰 높이 */
+const FIT_MAX = 480;
+/** 앱을 열 때 패널이 하나씩 나타나는 간격(ms)과, 패널이 많을 때 전체가 넘지 않을 시간 */
+const INTRO_STEP = 70;
+const INTRO_TOTAL = 700;
+const INTRO_EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+
+const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 interface Props {
   state: State;
@@ -251,6 +265,100 @@ export function Workspace({ state, dispatch }: Props) {
     return () => window.removeEventListener(SETTLED_EVENT, on);
   }, []);
 
+  // ───── 내용에 맞춘 높이 (사용법 노트) ─────
+  // fit에 든 패널이 화면에 보이면 내용 높이를 재서 panelHeights로 옮긴다. 기본 높이보다 작게 줄이지는 않는다.
+  // 높이 애니메이션(최소화 복원 등)이 도는 중이면 건너뛰고, 애니메이션이 끝났을 때(SETTLED) 다시 잰다.
+  const fitNow = useRef(() => {});
+  fitNow.current = () => {
+    const root = rootRef.current;
+    const s = stateRef.current;
+    if (!root || !s.fit.size) return;
+    const ids: string[] = [];
+    const heights: Record<string, number> = {};
+    for (const id of s.fit) {
+      const el = root.querySelector<HTMLElement>(`.panel[data-id="${id}"]`);
+      if (!el || el.classList.contains("min") || el.getAnimations().length) continue;
+      const prev = el.style.height;
+      el.style.height = "auto";
+      const h = Math.ceil(el.offsetHeight);
+      el.style.height = prev;
+      ids.push(id);
+      if (h > PANEL_H) heights[id] = Math.min(FIT_MAX, h);
+    }
+    if (ids.length) flushSync(() => dispatch({ type: "fitted", ids, heights }));
+  };
+  useEffect(() => {
+    const on = () => fitNow.current();
+    window.addEventListener(SETTLED_EVENT, on);
+    return () => window.removeEventListener(SETTLED_EVENT, on);
+  }, []);
+
+  // 사용법 노트를 막 만들었으면 전체가 한 화면에 보이게 한다: 창이 작으면 키우고, 그래도 넘치면 축소한다.
+  async function showWhole() {
+    const root = rootRef.current;
+    const cols = canvasRef.current?.firstElementChild as HTMLElement | null;
+    if (!root || !cols) return;
+    const needW = cols.offsetWidth;
+    const needH = cols.offsetHeight;
+    const dw = needW - root.clientWidth;
+    const dh = needH - root.clientHeight;
+    if (dw > 0 || dh > 0) {
+      // 창 크기가 실제로 바뀔 때까지(resize) 기다린다. 너무 오래 걸리면 그냥 넘어간다.
+      const resized = new Promise<void>((r) => window.addEventListener("resize", () => r(), { once: true }));
+      if (await growWindow(Math.max(0, dw), Math.max(0, dh))) await Promise.race([resized.then(nextFrame), wait(800)]);
+    }
+    // 창이 작던 동안 선택한 패널을 따라 화면이 밀렸을 수 있으므로 처음 자리에서 보여준다
+    const z = Math.min(1, root.clientWidth / needW, root.clientHeight / needH);
+    stopInertia();
+    view.current = { x: 0, y: 0, z: Math.max(ZOOM_MIN, Math.floor(z * 100) / 100) };
+    applyView();
+  }
+
+  // ───── 앱을 열 때 ─────
+  // 글꼴이 준비되면 높이를 맞추고, 패널이 왼쪽 컬럼부터 하나씩 나타난다. 그때까지 패널은 숨겨 둔다(.intro).
+  // 초기화로 화면을 새로 만들 때도 같다.
+  const [intro, setIntro] = useState(true);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      await Promise.race([document.fonts.ready, wait(800)]);
+      await nextFrame();
+      if (!live) return;
+      fitNow.current();
+      if (stateRef.current.fresh) {
+        await showWhole();
+        dispatch({ type: "freshDone" });
+      }
+      if (!live) return;
+      const root = rootRef.current;
+      if (root && !reducedMotion()) {
+        const els = [...root.querySelectorAll<HTMLElement>(".cols .panel")];
+        const step = Math.min(INTRO_STEP, INTRO_TOTAL / Math.max(1, els.length));
+        const anims = els.map((el, i) =>
+          el.animate(
+            [
+              { opacity: 0, transform: "translateX(-16px)" },
+              { opacity: 1, transform: "none" },
+            ],
+            { duration: 300, delay: i * step, easing: INTRO_EASE, fill: "backwards" },
+          ),
+        );
+        // 연결선은 마지막 패널이 거의 자리 잡을 즈음 나타난다
+        const svg = svgRef.current;
+        if (svg) {
+          anims.push(svg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, delay: Math.max(0, els.length - 1) * step + 200, fill: "backwards" }));
+        }
+        followWhileRunning(anims);
+      }
+      setIntro(false);
+    })();
+    return () => {
+      live = false;
+    };
+    // 처음 한 번만(초기화하면 Workspace를 새로 만든다)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ───── 연결선 ─────
   // 렌더 후, 본문 스크롤, 크기 변화, 패널이동모드 축소 애니메이션 때마다 다시 그린다
   const frame = useRef(0);
@@ -287,7 +395,7 @@ export function Workspace({ state, dispatch }: Props) {
   return (
     <div
       ref={rootRef}
-      className={"ws" + (state.moveOrigin ? " move" : "")}
+      className={"ws" + (state.moveOrigin ? " move" : "") + (intro ? " intro" : "")}
       data-rel={state.settings.lines ? "lines" : "grad"}
       onPointerDown={onPanStart}
       onPointerMove={onPanMove}

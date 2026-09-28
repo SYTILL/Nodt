@@ -115,6 +115,10 @@ export interface State {
   focus: FocusRequest | null;
   colWidths: Record<number, number>;
   panelHeights: Record<NoteId, number>;
+  /** 처음 화면에 나올 때 내용에 맞춰 높이를 정할 패널(사용법 노트). 한 번 맞추면 panelHeights로 옮긴다. */
+  fit: ReadonlySet<NoteId>;
+  /** 사용법 노트를 막 만들었다(처음 켤 때, 초기화). 화면에 전체가 보이게 창을 키우거나 축소한다. 저장하지 않는다. */
+  fresh: boolean;
   /** 캔버스 이동과 확대. Workspace가 끌기를 마칠 때 넣는다(저장용). */
   view: View;
   settings: Settings;
@@ -146,6 +150,9 @@ export type Action =
   | { type: "toast"; message: string | null; error?: boolean }
   | { type: "colWidth"; depth: number; width: number }
   | { type: "panelHeight"; id: NoteId; height: number }
+  /** 내용에 맞춰 잰 높이(fit). 기본 높이로 충분했던 패널은 heights에 없이 ids에만 들어 있다. */
+  | { type: "fitted"; ids: NoteId[]; heights: Record<NoteId, number> }
+  | { type: "freshDone" }
   | { type: "settings"; patch: Partial<Settings> }
   /** 에디터에서 본문이 바뀌었다. keep이면 사라진 링크를 삭제로 보지 않는다(잘라내서 옮기는 중). */
   | { type: "editDoc"; id: NoteId; doc: JSONContent; keep?: boolean }
@@ -180,6 +187,8 @@ export function makeState(notes: Notes, roots: NoteId[], patch: Partial<State> =
     focus: null,
     colWidths: {},
     panelHeights: {},
+    fit: new Set(),
+    fresh: false,
     view: { x: 0, y: 0, z: 1 },
     settings: DEFAULT_SETTINGS,
     epoch: 0,
@@ -569,6 +578,15 @@ export function reducer(s: State, a: Action): State {
 
     case "panelHeight":
       return { ...s, panelHeights: { ...s.panelHeights, [a.id]: a.height } };
+
+    case "fitted": {
+      const fit = new Set(s.fit);
+      for (const id of a.ids) fit.delete(id);
+      return { ...s, fit, panelHeights: { ...s.panelHeights, ...a.heights } };
+    }
+
+    case "freshDone":
+      return s.fresh ? { ...s, fresh: false } : s;
 
     case "settings":
       return { ...s, settings: { ...s.settings, ...a.patch } };
