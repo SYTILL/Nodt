@@ -11,7 +11,7 @@ export interface Session {
 
 export const TOAST_EVENT = "nodt:toast";
 
-/** React 밖(저장 실패 등)에서 알림을 띄운다 */
+/** React 밖(저장 실패 등)에서 오류 알림을 띄운다. 닫을 때까지 남는다. */
 export function showToast(message: string) {
   window.dispatchEvent(new CustomEvent(TOAST_EVENT, { detail: message }));
 }

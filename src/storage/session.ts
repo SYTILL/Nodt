@@ -55,7 +55,6 @@ export function normalizeSettings(raw: unknown): Settings {
   if (typeof r.lines === "boolean") s.lines = r.lines;
   if (THEMES.some((t) => t.id === r.theme)) s.theme = r.theme as Settings["theme"];
   if (r.brightness === "light" || r.brightness === "dark" || r.brightness === "system") s.brightness = r.brightness;
-  if (r.windowMode === "normal" || r.windowMode === "onTop" || r.windowMode === "hotkey") s.windowMode = r.windowMode;
   return s;
 }
 
@@ -71,9 +70,9 @@ export function freshState(settings: Settings): State {
   });
 }
 
-/** 완전 초기화: 노트가 하나도 없고 설정도 기본값이다 */
-export function emptyState(): State {
-  return makeState({}, [], { settings: DEFAULT_SETTINGS });
+/** 완전 초기화: 노트가 하나도 없는 빈 화면. 설정은 앱 전체 것이라 그대로 둔다. */
+export function emptyState(settings: Settings): State {
+  return makeState({}, [], { settings });
 }
 
 export interface Booted {

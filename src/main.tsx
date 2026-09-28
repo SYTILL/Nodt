@@ -4,6 +4,8 @@ import "@fontsource/ibm-plex-sans-kr/400.css";
 import "@fontsource/ibm-plex-sans-kr/600.css";
 import "./styles.css";
 import { getCurrentWindow, type Window } from "@tauri-apps/api/window";
+// 처음부터 불러 둔다. 필요할 때 불러오면 개발 서버가 의존성을 다시 묶는 사이 옛 주소를 찾다가 실패한다.
+import { confirm } from "@tauri-apps/plugin-dialog";
 import App from "./App";
 import { createSampleNotes } from "./model/sample";
 import { DEFAULT_SETTINGS, makeState } from "./state/store";
@@ -33,7 +35,6 @@ async function readGeom(win: Window, prev: WindowGeom | undefined): Promise<Wind
 async function changeDataDir(saver: Saver, backend: Backend, dir: string) {
   await saver.flush(false);
   if (await backend.hasNotes(dir)) {
-    const { confirm } = await import("@tauri-apps/plugin-dialog");
     const ok = await confirm("이 폴더에 이미 노트가 있어요. 그 노트를 불러올까요?\n지금 폴더의 노트는 그대로 남아요.", {
       title: "데이터 폴더",
       okLabel: "불러오기",

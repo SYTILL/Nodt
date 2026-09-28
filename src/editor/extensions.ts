@@ -51,7 +51,14 @@ export function buildExtensions(getApi: GetApi) {
     }),
     TaskList,
     TaskItem.configure({ nested: true }),
-    Placeholder.configure({ placeholder: "내용 · / 로 명령", showOnlyCurrent: true }),
+    // 안내 글은 최상위 노트에만 보인다. 하위 노트는 새로 열렸을 때 깔끔하게 비워 둔다.
+    Placeholder.configure({
+      placeholder: () => {
+        const api = getApi();
+        return api.getState().tree.parent[api.noteId] ? "" : "내용 · / 로 명령";
+      },
+      showOnlyCurrent: true,
+    }),
     NodtLink,
     NodtKeys(getApi),
     SlashCommand(getApi),

@@ -1,6 +1,6 @@
+import { open } from "@tauri-apps/plugin-dialog";
 import { useState, type Dispatch, type ReactNode } from "react";
 import { emptyState, freshState } from "../storage/session";
-import { HOTKEY_LABEL } from "../platform";
 import type { Action, Overlay, Settings } from "../state/store";
 import { THEMES } from "../theme/themes";
 import { IconX } from "./icons";
@@ -136,8 +136,9 @@ export function OverlayView({ overlay, settings, dispatch, session }: Props) {
 
 /**
  * 초기화 확인. 두 가지 중 고른다.
- * - 사용법 노트로: 모든 노트와 화면 배치를 지우고 처음 켰을 때의 사용법 노트로. 설정은 그대로.
- * - 완전 초기화: 노트를 모두 지우고 설정도 기본값으로. 빈 화면에서 시작한다(데이터 폴더 위치는 그대로).
+ * - 사용법 노트로: 모든 노트와 화면 배치를 지우고 처음 켰을 때의 사용법 노트로.
+ * - 완전 초기화: 노트를 모두 지우고 빈 화면에서 시작한다(기본 선택).
+ * 설정은 앱 전체 것이라 어느 쪽이든 그대로 둔다.
  */
 function ResetSheet({
   settings,
@@ -151,21 +152,21 @@ function ResetSheet({
   session: Session;
 }) {
   const [busy, setBusy] = useState(false);
-  const [kind, setKind] = useState<"tutorial" | "all">("tutorial");
+  const [kind, setKind] = useState<"tutorial" | "all">("all");
   async function reset() {
     setBusy(true);
     try {
       await session.beforeReset?.();
-      dispatch({ type: "hydrate", state: kind === "tutorial" ? freshState(settings) : emptyState() });
+      dispatch({ type: "hydrate", state: kind === "tutorial" ? freshState(settings) : emptyState(settings) });
     } catch (e) {
       setBusy(false);
-      dispatch({ type: "toast", message: `초기화하지 못했어요 · ${String(e)}` });
+      dispatch({ type: "toast", message: `초기화하지 못했어요 · ${String(e)}`, error: true });
     }
   }
   return (
     <div className="sheet" role="alertdialog" aria-label="초기화">
       <h4>초기화할까요?</h4>
-      <p className="msg">모든 노트와 화면 배치가 지워져요.</p>
+      <p className="msg">모든 노트와 화면 배치가 지워져요. 설정은 그대로예요.</p>
       <div className="opt">
         <Radios
           name="resetKind"
@@ -174,15 +175,15 @@ function ResetSheet({
           onChange={setKind}
           options={[
             [
-              "tutorial",
+              "all",
               <span>
-                <strong>사용법 노트로</strong> · 처음 켰을 때처럼. 설정은 그대로
+                <strong>완전 초기화</strong> · 빈 화면에서 시작
               </span>,
             ],
             [
-              "all",
+              "tutorial",
               <span>
-                <strong>완전 초기화</strong> · 빈 화면에서 시작. 설정도 처음 값으로
+                <strong>사용법 노트로</strong> · 처음 켰을 때처럼
               </span>,
             ],
           ]}
@@ -223,15 +224,18 @@ function Radios<T extends string>({
   options,
   onChange,
   column,
+  grid,
 }: {
   name: string;
   value: T;
   options: [T, ReactNode][];
   onChange: (v: T) => void;
   column?: boolean;
+  /** 3칸 격자 */
+  grid?: boolean;
 }) {
   return (
-    <div className={column ? "col-opts" : "row"}>
+    <div className={column ? "col-opts" : grid ? "grid-opts" : "row"}>
       {options.map(([v, label]) => (
         <label key={v}>
           <input type="radio" name={name} checked={value === v} onChange={() => onChange(v)} />
@@ -254,11 +258,35 @@ function SettingsSheet({
   session: Session;
 }) {
   const set = (patch: Partial<Settings>) => dispatch({ type: "settings", patch });
+  const [dir, setDir] = useState(session.dataDir);
+  const edited = dir.trim() !== session.dataDir;
+
+  /** 폴더를 바꾼다. 실패하면 알림으로 알린다(전에는 조용히 실패해서 아무 반응이 없어 보였다). */
+  async function apply(next: string) {
+    // 끝의 구분자는 떼되, 드라이브 루트(C:\)는 그대로 둔다
+    const target = next.trim().replace(/(?<!:)[\\/]+$/, "");
+    if (!target || target === session.dataDir) return;
+    if (!/^([A-Za-z]:[\\/]|\\\\)/.test(target)) {
+      dispatch({ type: "toast", message: "C:\\... 처럼 전체 경로로 적어 주세요" });
+      return;
+    }
+    try {
+      await session.changeDataDir?.(target);
+    } catch (e) {
+      dispatch({ type: "toast", message: `데이터 폴더를 바꾸지 못했어요 · ${String(e)}`, error: true });
+    }
+  }
 
   async function pickFolder() {
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const dir = await open({ directory: true, title: "데이터 폴더 고르기", defaultPath: session.dataDir });
-    if (typeof dir === "string" && dir !== session.dataDir) await session.changeDataDir?.(dir);
+    try {
+      const picked = await open({ directory: true, title: "데이터 폴더 고르기", defaultPath: session.dataDir });
+      if (typeof picked === "string") {
+        setDir(picked);
+        await apply(picked);
+      }
+    } catch (e) {
+      dispatch({ type: "toast", message: `폴더 고르기 창을 열지 못했어요 · ${String(e)}`, error: true });
+    }
   }
 
   return (
@@ -283,8 +311,8 @@ function SettingsSheet({
           value={settings.lines ? "on" : "off"}
           onChange={(v) => set({ lines: v === "on" })}
           options={[
-            ["off", "끄기"],
             ["on", "켜기"],
+            ["off", "끄기"],
           ]}
         />
       </div>
@@ -292,6 +320,7 @@ function SettingsSheet({
         <span className="lbl">테마</span>
         <Radios
           name="theme"
+          grid
           value={settings.theme}
           onChange={(theme) => set({ theme })}
           options={THEMES.map((t) => [
@@ -317,33 +346,29 @@ function SettingsSheet({
         />
       </div>
       <div className="opt">
-        <span className="lbl">창 모드</span>
-        <Radios
-          name="windowMode"
-          column
-          value={settings.windowMode}
-          onChange={(windowMode) => set({ windowMode })}
-          options={[
-            ["normal", "일반 창: 다른 프로그램을 누르면 그 뒤로 가려짐"],
-            ["onTop", "항상 위"],
-            [
-              "hotkey",
-              <>
-                단축키로 불러오기·숨기기 <kbd>{HOTKEY_LABEL}</kbd>
-              </>,
-            ],
-          ]}
-        />
-      </div>
-      <div className="opt">
         <span className="lbl">데이터 폴더</span>
         <div className="folder">
-          <span className="path">{session.dataDir}</span>
-          {session.changeDataDir && (
-            <button type="button" className="sbtn" onClick={() => void pickFolder()}>
-              바꾸기
-            </button>
-          )}
+          <input
+            className="path"
+            value={dir}
+            spellCheck={false}
+            readOnly={!session.changeDataDir}
+            aria-label="데이터 폴더 경로"
+            onChange={(e) => setDir(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) void apply(dir);
+            }}
+          />
+          {session.changeDataDir &&
+            (edited ? (
+              <button type="button" className="sbtn primary" onClick={() => void apply(dir)}>
+                바꾸기
+              </button>
+            ) : (
+              <button type="button" className="sbtn" onClick={() => void pickFolder()}>
+                폴더 고르기
+              </button>
+            ))}
         </div>
         <span className="note">백업은 이 폴더의 backups에 5분·2시간·1일·1주·1달 단위로 남아요.</span>
       </div>

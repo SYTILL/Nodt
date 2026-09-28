@@ -322,8 +322,11 @@ body.panel-dragging * {
 .phead .ib {
   width: 22px;
 }
-/* 제목 입력칸. 평소에는 글자처럼 보이고, 눌러서 바로 고친다 */
+/* 제목 입력칸. 평소에는 상단바의 글자일 뿐이라 누르거나 끌면 상단바가 받는다.
+   두 번 누르거나 키보드로 들어왔을 때(초점)만 입력칸으로 동작한다 */
 .ptitle {
+  pointer-events: none;
+  user-select: none;
   flex: 1;
   min-width: 0;
   padding: 2px 0;
@@ -335,6 +338,10 @@ body.panel-dragging * {
   font-weight: 600;
   font-size: var(--ts);
   text-overflow: ellipsis;
+}
+.ptitle:focus {
+  pointer-events: auto;
+  user-select: text;
 }
 .ptitle::placeholder {
   color: var(--muted);
@@ -681,6 +688,23 @@ body.panel-dragging * {
 .movebar ~ .toast {
   bottom: 52px;
 }
+/* 오류 알림: 설정 창 같은 오버레이 위에 뜨고, 길면 줄을 바꾸며, 글자를 골라 복사할 수 있다 */
+.toast.error {
+  z-index: 7;
+  background: var(--danger);
+  color: #fff;
+  white-space: normal;
+  width: max-content;
+  max-width: min(640px, calc(100vw - 32px));
+  user-select: text;
+}
+.toast.error .toast-msg {
+  overflow-wrap: anywhere;
+}
+.toast.error .toast-act {
+  flex: none;
+  background: rgb(255 255 255 / 0.18);
+}
 .cmenu-layer {
   position: fixed;
   inset: 0;
@@ -866,9 +890,18 @@ kbd {
 .opt .folder .path {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  border: 1px solid var(--line);
+  color: var(--text);
+  outline: none;
+}
+.opt .folder .path:focus {
+  border-color: var(--accent);
+}
+/* 테마: 3칸 격자, 칸 너비를 같게 */
+.opt .grid-opts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px 16px;
 }
 .opt .note {
   color: var(--muted);

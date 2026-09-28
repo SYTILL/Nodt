@@ -33,4 +33,8 @@ export default defineConfig(() => ({
   build: {
     chunkSizeWarningLimit: 1500,
   },
+  // Tauri 플러그인은 처음부터 미리 묶어 둔다(나중에 발견되면 다시 묶으면서 열려 있던 화면의 모듈 주소가 깨진다)
+  optimizeDeps: {
+    include: ["@tauri-apps/api/core", "@tauri-apps/api/window", "@tauri-apps/plugin-dialog"],
+  },
 }));

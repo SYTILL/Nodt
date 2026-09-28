@@ -81,6 +81,13 @@ export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidt
       <div
         className="phead"
         onPointerDown={onHeadPointerDown}
+        // 제목은 두 번 눌러야 고칠 수 있다(한 번 누르기와 끌기는 상단바 동작). 커서는 제목 끝에 둔다.
+        onDoubleClick={(e) => {
+          const input = titleRef.current;
+          if (!input || document.activeElement === input || (e.target as HTMLElement).closest("button")) return;
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        }}
         onContextMenu={(e) => {
           e.preventDefault();
           dispatch({ type: "menu", menu: { kind: "panel", id, x: e.clientX, y: e.clientY } });
@@ -90,7 +97,7 @@ export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidt
           ref={titleRef}
           className="ptitle"
           value={note.title}
-          placeholder="제목 없음"
+          placeholder={isRoot ? "제목 없음" : ""}
           spellCheck={false}
           aria-label="제목"
           onChange={(e) => dispatch({ type: "setTitle", id, title: e.target.value })}

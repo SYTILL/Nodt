@@ -25,23 +25,19 @@ const EXPAND_CONFIRM_OVER = 30;
 const LINEAGE_STEP = 0.3;
 
 export type Brightness = "light" | "dark" | "system";
-export type WindowMode = "normal" | "onTop" | "hotkey";
 
 export interface Settings {
   openMode: "add" | "replace";
   lines: boolean;
   theme: ThemeId;
-  /** 기본값은 미결 사항이다. 일단 시스템 설정을 따른다. */
   brightness: Brightness;
-  windowMode: WindowMode;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   openMode: "add",
-  lines: false,
+  lines: true,
   theme: "teal",
   brightness: "system",
-  windowMode: "normal",
 };
 
 export type Dir = "left" | "right" | "up" | "down";
@@ -104,8 +100,8 @@ export interface State {
   /** 패널이동모드일 때 들어오기 전의 패널. 모드가 아니면 null */
   moveOrigin: NoteId | null;
   overlay: Overlay | null;
-  /** undo가 true면 되돌리기 버튼이 붙은 삭제 알림이다 */
-  toast: { message: string; seq: number; undo?: boolean } | null;
+  /** undo가 true면 되돌리기 버튼이 붙은 삭제 알림이다. error면 닫을 때까지 남는 오류 알림이다. */
+  toast: { message: string; seq: number; undo?: boolean; error?: boolean } | null;
   deleted: Deleted | null;
   focus: FocusRequest | null;
   colWidths: Record<number, number>;
@@ -138,7 +134,7 @@ export type Action =
   | { type: "moveEnd"; cancel: boolean }
   | { type: "escape" }
   | { type: "overlay"; overlay: Overlay | null }
-  | { type: "toast"; message: string | null }
+  | { type: "toast"; message: string | null; error?: boolean }
   | { type: "colWidth"; depth: number; width: number }
   | { type: "panelHeight"; id: NoteId; height: number }
   | { type: "settings"; patch: Partial<Settings> }
@@ -499,7 +495,8 @@ export function reducer(s: State, a: Action): State {
     }
 
     case "escape": {
-      // 메뉴, 오버레이, 모드가 떠 있으면 그것부터 닫는다
+      // 오류 알림, 메뉴, 오버레이, 모드가 떠 있으면 그것부터 닫는다
+      if (s.toast?.error) return { ...s, toast: null };
       if (s.menu) return { ...s, menu: null };
       if (s.overlay) return { ...s, overlay: null };
       if (s.moveOrigin) return reducer(s, { type: "moveEnd", cancel: true });
@@ -515,7 +512,7 @@ export function reducer(s: State, a: Action): State {
       // 되돌리기 알림이 사라지거나 다른 알림으로 바뀌면 삭제가 확정된다
       return {
         ...s,
-        toast: a.message ? { message: a.message, seq: (s.toast?.seq ?? 0) + 1 } : null,
+        toast: a.message ? { message: a.message, seq: (s.toast?.seq ?? 0) + 1, error: a.error } : null,
         deleted: null,
       };
 

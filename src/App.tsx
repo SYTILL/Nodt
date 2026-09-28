@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { cancelCut, pendingCut } from "./editor/clipboard";
 import { slashStore } from "./editor/slash";
-import { applyWindowMode } from "./platform";
 import { reducer, siblingsOf, type Action, type Dir, type State } from "./state/store";
 import { applyTheme, type Mode } from "./theme/themes";
 import { AppContext, type AppApi } from "./ui/appContext";
@@ -54,7 +53,7 @@ export default function App({ initial, onState, session }: Props) {
 
   // React 밖(저장 실패 등)에서 온 알림
   useEffect(() => {
-    const on = (e: Event) => dispatch({ type: "toast", message: String((e as CustomEvent).detail) });
+    const on = (e: Event) => dispatch({ type: "toast", message: String((e as CustomEvent).detail), error: true });
     window.addEventListener(TOAST_EVENT, on);
     return () => window.removeEventListener(TOAST_EVENT, on);
   }, [dispatch]);
@@ -63,11 +62,10 @@ export default function App({ initial, onState, session }: Props) {
   const { theme, brightness } = state.settings;
   const mode = brightness === "system" ? systemMode : brightness;
   useLayoutEffect(() => applyTheme(document.documentElement, theme, mode), [theme, mode]);
-  const { windowMode } = state.settings;
-  useEffect(() => void applyWindowMode(windowMode), [windowMode]);
 
   useEffect(() => {
-    if (!state.toast) return;
+    // 오류 알림은 읽고 닫을 때까지 남긴다
+    if (!state.toast || state.toast.error) return;
     const t = setTimeout(() => dispatch({ type: "toast", message: null }), state.toast.undo ? UNDO_MS : TOAST_MS);
     return () => clearTimeout(t);
   }, [state.toast, dispatch]);
@@ -158,8 +156,13 @@ export default function App({ initial, onState, session }: Props) {
         <Workspace key={state.epoch} state={state} dispatch={dispatch} />
         {state.moveOrigin && <div className="movebar">패널이동모드 · 방향키로 이동 · Enter 선택 · Esc 취소</div>}
         {state.toast && (
-          <div className="toast" role="status" key={state.toast.seq}>
-            {state.toast.message}
+          <div className={"toast" + (state.toast.error ? " error" : "")} role={state.toast.error ? "alert" : "status"} key={state.toast.seq}>
+            <span className="toast-msg">{state.toast.message}</span>
+            {state.toast.error && (
+              <button type="button" className="toast-act" onClick={() => dispatch({ type: "toast", message: null })}>
+                닫기 <span className="hint">Esc</span>
+              </button>
+            )}
             {state.toast.undo && (
               <button type="button" className="toast-act" onClick={() => dispatch({ type: "undoDelete" })}>
                 되돌리기 <span className="hint">Ctrl+Z</span>
