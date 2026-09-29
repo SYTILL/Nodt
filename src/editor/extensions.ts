@@ -2,6 +2,7 @@ import { Extension } from "@tiptap/core";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Placeholder } from "@tiptap/extensions";
 import StarterKit from "@tiptap/starter-kit";
+import { t } from "../i18n";
 import type { GetApi } from "./api";
 import { cutPlugin } from "./clipboard";
 import { arrowUpToTitle, insertNewLink, toggleLinkBeforeCursor } from "./commands";
@@ -48,6 +49,8 @@ export function buildExtensions(getApi: GetApi) {
       underline: false,
       trailingNode: false,
       dropcursor: false,
+      // 되돌리기는 앱 전체 기록 하나로 한다(state/store.ts의 전역 되돌리기). 에디터마다 따로 두지 않는다.
+      undoRedo: false,
     }),
     TaskList,
     TaskItem.configure({ nested: true }),
@@ -55,7 +58,7 @@ export function buildExtensions(getApi: GetApi) {
     Placeholder.configure({
       placeholder: () => {
         const api = getApi();
-        return api.getState().tree.parent[api.noteId] ? "" : "내용 · / 로 명령";
+        return api.getState().tree.parent[api.noteId] ? "" : t().bodyPlaceholder;
       },
       showOnlyCurrent: true,
     }),

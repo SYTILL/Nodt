@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { t } from "../i18n";
 
 // 파일 처리는 Tauri의 Rust 쪽(src-tauri/src/storage.rs)이 한다.
 // 브라우저에서 화면만 띄울 때(npm run dev)는 localStorage로 흉내 낸다.
@@ -91,7 +92,8 @@ const ls = {
 
 const browserBackend: Backend = {
   kind: "browser",
-  defaultDataDir: async () => "문서\\Nodt",
+  // localStorage 키에도 쓰이므로 언어와 상관없이 고정한다
+  defaultDataDir: async () => "Documents\\Nodt",
   readConfig: async () => ls.get("nodt.config"),
   writeConfig: async (text) => ls.set("nodt.config", text),
   loadAll: async (dir) => {
@@ -110,7 +112,7 @@ const browserBackend: Backend = {
   backupBeforeReset: async () => null,
   listBackups: async () => [],
   restoreBackup: async () => {
-    throw new Error("브라우저에서는 백업이 없어요");
+    throw new Error(t().noBackupsInBrowser);
   },
 };
 

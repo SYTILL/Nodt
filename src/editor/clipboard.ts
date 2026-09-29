@@ -2,6 +2,7 @@ import type { JSONContent } from "@tiptap/core";
 import { Fragment, Slice, type Node as PMNode, type Schema } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
+import { t } from "../i18n";
 import { LINK_NODE } from "../model/markdown";
 import { BROKEN_TARGET, isInSubtree, mapLinks, nowIso, type Note, type NoteId } from "../model/notes";
 import type { GetApi } from "./api";
@@ -120,7 +121,7 @@ function moveCut(view: EditorView, getApi: GetApi): boolean {
   const moving = linkIds(slice.content).filter((id) => id in s.notes);
   if (moving.some((id) => isInSubtree(s.tree, id, api.noteId))) {
     cancelCut();
-    api.raw({ type: "toast", message: "자기 하위 노트 안으로는 옮길 수 없음" });
+    api.raw({ type: "toast", message: t().cannotMoveIntoSelf });
     return true;
   }
   cut = null;

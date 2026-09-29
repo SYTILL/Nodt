@@ -2,6 +2,7 @@ import { Node } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from "@tiptap/react";
+import { t } from "../i18n";
 import { LINK_NODE } from "../model/markdown";
 import { BROKEN_TARGET } from "../model/notes";
 import { useApp } from "../ui/appContext";
@@ -79,7 +80,7 @@ function LinkChipView({ node, editor, getPos }: ReactNodeViewProps) {
         <button
           type="button"
           className="lnk broken"
-          aria-label="깨진 링크"
+          aria-label={t().brokenLink}
           contentEditable={false}
           onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {
@@ -110,7 +111,7 @@ function LinkChipView({ node, editor, getPos }: ReactNodeViewProps) {
         type="button"
         className={"lnk" + (open ? " open" : "")}
         data-link={id}
-        aria-label={`${note.title || "제목 없음"} ${open ? "닫기" : "열기"}`}
+        aria-label={t().toggleNote(note.title || t().untitled, open)}
         contentEditable={false}
         onMouseDown={(e) => e.preventDefault()}
         onClick={(e) => {

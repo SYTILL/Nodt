@@ -37,24 +37,6 @@ export async function toggleMaximizeWindow() {
   }
 }
 
-// 가장 작은 창: 기본 크기 패널 하나에, 사방으로 화면 이동 저항이 걸리기 시작하는 거리(컬럼 간격)만큼 여백.
-// 패널 244×200, 프로그램 상단바 32, 간격은 12(연결선 켜면 34). Workspace.tsx, styles.css의 값과 맞춘다.
-const PANEL_W = 244;
-const PANEL_H = 200;
-const CHROME_H = 32;
-/** 프로그램 상단바(로고, 초기화·설정·도움말, 창 버튼 셋)가 잘리지 않는 가장 좁은 너비 */
-const CHROME_MIN_W = 286;
-
-/** 가장 작은 창 크기를 연결선 설정(간격)에 맞춘다 */
-export async function applyMinSize(lines: boolean) {
-  const gap = lines ? 34 : 12;
-  try {
-    await getCurrentWindow().setMinSize(new LogicalSize(Math.max(PANEL_W + gap * 2, CHROME_MIN_W), CHROME_H + PANEL_H + gap * 2));
-  } catch {
-    // Tauri 밖
-  }
-}
-
 /**
  * 창을 dw, dh(논리 픽셀)만큼 키운다. 모니터 작업 영역을 넘지 않고, 키웠으면 가운데로 옮긴다.
  * 사용법 노트가 창보다 클 때 쓴다. 최대화돼 있으면 그대로 둔다. 키웠으면 true.

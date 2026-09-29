@@ -4,9 +4,7 @@ import {
   buildTree,
   descendants,
   docLinks,
-  insertLinkAt,
   isInSubtree,
-  linkPaths,
   moveLink,
   newNote,
   nowIso,
@@ -17,6 +15,7 @@ import {
   type Notes,
   type Tree,
 } from "../model/notes";
+import { t, type Lang } from "../i18n";
 import type { ThemeId } from "../theme/themes";
 
 /** 하위 전체 펼치기에서 이보다 많이 열리면 확인 창을 띄운다 */
@@ -29,6 +28,8 @@ export type Brightness = "light" | "dark" | "system";
 export type Backdrop = "mica" | "acrylic" | "none";
 
 export interface Settings {
+  /** 화면 글의 언어. 영어가 기본이다. */
+  lang: Lang;
   openMode: "add" | "replace";
   lines: boolean;
   theme: ThemeId;
@@ -39,6 +40,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  lang: "en",
   openMode: "add",
   lines: true,
   theme: "teal",
@@ -60,24 +62,23 @@ export type Overlay =
 
 export type View = { x: number; y: number; z: number };
 
-/** 삭제를 되돌리는 데 필요한 것. 되돌리기 알림이 사라지면 버린다. */
-export interface Deleted {
-  /** 링크가 있던 부모. 최상위 노트를 지웠으면 null */
-  parent: NoteId | null;
-  /** 부모 본문의 삭제 전후 문서. 그 뒤로 편집이 없었으면 삭제 전 문서로 돌아간다. */
-  docBefore?: JSONContent;
-  docAfter?: JSONContent;
-  /** 뺀 링크의 삭제 전 경로. 그 뒤로 편집이 있었으면 이 자리에 다시 넣는다. */
-  paths: Record<NoteId, number[]>;
-  /** 링크가 지워진 노트들(최상위 노트를 지웠으면 그 노트). 하위 노트는 notes에만 있다. */
-  targets: NoteId[];
-  /** 최상위 노트를 지웠을 때 원래 순서 */
-  rootIndex?: number;
-  notes: Note[];
-  open: NoteId[];
-  minimized: NoteId[];
-  panelHeights: Record<NoteId, number>;
+/**
+ * 되돌리기 기록 하나. 바뀌기 전의 노트 구조(노트 내용, 최상위 노트 순서, 열림, 최소화)와 그때 선택한 패널.
+ * 앱 전체에서 한 줄로 쌓인다(전역 되돌리기). 저장하지 않고, 앱을 끄면 사라진다.
+ */
+export interface HistoryEntry {
+  notes: Notes;
+  roots: NoteId[];
+  open: ReadonlySet<NoteId>;
+  minimized: ReadonlySet<NoteId>;
   active: NoteId | null;
+  /** 이어서 친 글을 한 단계로 묶는 데 쓴다 */
+  group: { kind: "text" | "title"; id: NoteId } | null;
+  /** 이 단계가 시작된 때와 마지막으로 합쳐진 때(ms) */
+  start: number;
+  last: number;
+  /** 같은 순간(한 번의 동작 안)에 온 변화는 한 단계로 합친다 */
+  tick: number;
 }
 
 /** 패널에 키보드 초점을 옮기라는 요청. seq가 바뀔 때마다 한 번 처리한다. */
@@ -111,7 +112,11 @@ export interface State {
   overlay: Overlay | null;
   /** undo가 true면 되돌리기 버튼이 붙은 삭제 알림이다. error면 닫을 때까지 남는 오류 알림이다. */
   toast: { message: string; seq: number; undo?: boolean; error?: boolean } | null;
-  deleted: Deleted | null;
+  /** 되돌리기(Ctrl+Z)와 다시 실행(Ctrl+Shift+Z, Ctrl+Y). 나중 것이 뒤 */
+  past: HistoryEntry[];
+  future: HistoryEntry[];
+  /** 되돌리기·다시 실행할 때마다 1씩 는다. 에디터가 바뀐 자리로 커서를 옮기는 데 쓴다. */
+  undoSeq: number;
   focus: FocusRequest | null;
   colWidths: Record<number, number>;
   panelHeights: Record<NoteId, number>;
@@ -134,7 +139,9 @@ export type Action =
   | { type: "closeActive" }
   | { type: "toggleMinimize"; id: NoteId }
   | { type: "delete"; id: NoteId }
-  | { type: "undoDelete" }
+  /** 전역 되돌리기(Ctrl+Z), 다시 실행(Ctrl+Shift+Z, Ctrl+Y) */
+  | { type: "undo" }
+  | { type: "redo" }
   | { type: "menu"; menu: State["menu"] }
   | { type: "fixBroken"; parent: NoteId; n: number }
   | { type: "removeBroken"; parent: NoteId; n: number }
@@ -183,7 +190,9 @@ export function makeState(notes: Notes, roots: NoteId[], patch: Partial<State> =
     moveOrigin: null,
     overlay: null,
     toast: null,
-    deleted: null,
+    past: [],
+    future: [],
+    undoSeq: 0,
     focus: null,
     colWidths: {},
     panelHeights: {},
@@ -305,16 +314,10 @@ function closeNote(s: State, id: NoteId): State {
 
 /**
  * 링크가 지워진 노트(targets)와 하위 노트를 지운다. 부모 문서는 이미 링크가 빠진 상태여야 한다.
- * parent가 null이면 최상위 노트를 지운다(links 없음).
- * 되돌리기 알림이 떠 있는 동안은 되돌릴 수 있다. 하위 노트는 지우기 전 트리(tree)로 찾는다.
+ * parent가 null이면 최상위 노트를 지운다(links 없음). 하위 노트는 지우기 전 트리(tree)로 찾는다.
+ * 되돌리기는 전역 기록(Ctrl+Z)이 한다. 알림에는 되돌리기 버튼을 붙인다.
  */
-function deleteSubtrees(
-  s: State,
-  parent: NoteId | null,
-  targets: NoteId[],
-  tree: Tree,
-  docs?: { before: JSONContent; after: JSONContent },
-): State {
+function deleteSubtrees(s: State, parent: NoteId | null, targets: NoteId[], tree: Tree): State {
   const ids = [...new Set(targets.flatMap((r) => [r, ...descendants(tree, r)]))].filter((k) => k in s.notes);
   const notes: Notes = { ...s.notes };
   const open = new Set(s.open);
@@ -326,15 +329,8 @@ function deleteSubtrees(
     minimized.delete(k);
     delete panelHeights[k];
   }
-  const paths: Record<NoteId, number[]> = {};
-  if (docs) for (const l of linkPaths(docs.before)) if (targets.includes(l.id)) paths[l.id] ??= l.path;
-
-  const title = (id: NoteId) => s.notes[id]?.title || "제목 없음";
-  const more = ids.length - targets.length;
-  const message =
-    targets.length === 1
-      ? `‘${title(targets[0])}’ 삭제됨` + (more ? ` · 하위 노트 ${more}개 포함` : "")
-      : `노트 ${targets.length}개 삭제됨` + (more ? ` · 하위 노트 ${more}개 포함` : "");
+  const title = (id: NoteId) => s.notes[id]?.title || t().untitled;
+  const message = t().deleted(targets.map(title), ids.length - targets.length);
   return {
     ...setNotes(s, notes),
     roots: parent ? s.roots : s.roots.filter((r) => !targets.includes(r)),
@@ -343,53 +339,7 @@ function deleteSubtrees(
     panelHeights,
     active: s.active && ids.includes(s.active) ? parent : s.active,
     warn: false,
-    deleted: {
-      parent,
-      docBefore: docs?.before,
-      docAfter: docs?.after,
-      paths,
-      targets,
-      rootIndex: parent ? undefined : s.roots.indexOf(targets[0]),
-      notes: ids.map((k) => s.notes[k]),
-      open: ids.filter((k) => s.open.has(k)),
-      minimized: ids.filter((k) => s.minimized.has(k)),
-      panelHeights: Object.fromEntries(ids.filter((k) => k in s.panelHeights).map((k) => [k, s.panelHeights[k]])),
-      active: s.active,
-    },
     toast: { message, seq: (s.toast?.seq ?? 0) + 1, undo: true },
-  };
-}
-
-/** 삭제를 되돌린다. touchDoc이면 부모 문서에도 링크를 되돌린다(에디터가 이미 되돌렸으면 false). */
-function restoreDeleted(s: State, d: Deleted, touchDoc: boolean): State {
-  const notes: Notes = { ...s.notes };
-  for (const n of d.notes) notes[n.id] = n;
-  const cur = d.parent ? notes[d.parent] : undefined;
-  if (touchDoc && d.parent && cur) {
-    let doc: JSONContent;
-    if (cur.doc === d.docAfter && d.docBefore) {
-      doc = d.docBefore;
-    } else {
-      doc = cur.doc;
-      const present = new Set(docLinks(doc));
-      for (const r of d.targets) if (!present.has(r)) doc = insertLinkAt(doc, r, d.paths[r] ?? [0, 0]);
-    }
-    notes[d.parent] = { ...cur, doc, updated: nowIso() };
-  }
-  let roots = s.roots;
-  if (!d.parent) {
-    roots = s.roots.filter((r) => !d.targets.includes(r));
-    roots.splice(Math.max(0, Math.min(d.rootIndex ?? roots.length, roots.length)), 0, ...d.targets);
-  }
-  return {
-    ...setNotes(s, notes),
-    roots,
-    open: new Set([...s.open, ...d.open]),
-    minimized: new Set([...s.minimized, ...d.minimized]),
-    panelHeights: { ...s.panelHeights, ...d.panelHeights },
-    active: d.active && d.active in notes ? d.active : s.active,
-    deleted: null,
-    toast: null,
   };
 }
 
@@ -400,7 +350,7 @@ function deleteNote(s: State, id: NoteId): State {
   const before = s.notes[parent].doc;
   const { doc: after } = removeLinks(before, new Set([id]));
   const notes: Notes = { ...s.notes, [parent]: { ...s.notes[parent], doc: after, updated: nowIso() } };
-  return deleteSubtrees(setNotes(s, notes), parent, [id], s.tree, { before, after });
+  return deleteSubtrees(setNotes(s, notes), parent, [id], s.tree);
 }
 
 function nav(s: State, dir: Dir): State {
@@ -424,7 +374,7 @@ function nav(s: State, dir: Dir): State {
   return s.moveOrigin ? moved : withFocus(moved, next, "restore");
 }
 
-export function reducer(s: State, a: Action): State {
+function apply(s: State, a: Action): State {
   switch (a.type) {
     case "select":
       return { ...s, active: a.id, warn: false, moveOrigin: null };
@@ -449,7 +399,7 @@ export function reducer(s: State, a: Action): State {
       // 막 만들고 아무것도 안 쓴 노트는 없었던 일로
       if (isBlank(s, s.active)) return discardBlank(s, s.active);
       // 최상위 노트는 닫는 대신 최소화한다(다시 누르면 복원)
-      if (!s.tree.parent[s.active]) return withFocus(reducer(s, { type: "toggleMinimize", id: s.active }), s.active, "restore");
+      if (!s.tree.parent[s.active]) return withFocus(apply(s, { type: "toggleMinimize", id: s.active }), s.active, "restore");
       const closed = closeNote(s, s.active);
       return closed.active ? withFocus(closed, closed.active, "restore") : closed;
     }
@@ -463,11 +413,6 @@ export function reducer(s: State, a: Action): State {
     case "delete":
       return deleteNote(s, a.id);
 
-    case "undoDelete": {
-      const d = s.deleted;
-      return d && (d.parent === null || d.parent in s.notes) ? restoreDeleted(s, d, true) : s;
-    }
-
     case "expandAll": {
       const toOpen = descendants(s.tree, a.id).filter((k) => !s.open.has(k));
       if (!a.confirmed && toOpen.length > EXPAND_CONFIRM_OVER) {
@@ -475,8 +420,8 @@ export function reducer(s: State, a: Action): State {
           ...s,
           overlay: {
             kind: "confirm",
-            message: `하위 노트 ${toOpen.length}개를 모두 열까요?`,
-            confirmLabel: "모두 열기",
+            message: t().expandConfirm(toOpen.length),
+            confirmLabel: t().expandConfirmOk,
             action: { ...a, confirmed: true },
           },
         };
@@ -555,23 +500,19 @@ export function reducer(s: State, a: Action): State {
       if (s.toast?.error) return { ...s, toast: null };
       if (s.menu) return { ...s, menu: null };
       if (s.overlay) return { ...s, overlay: null };
-      if (s.moveOrigin) return reducer(s, { type: "moveEnd", cancel: true });
+      if (s.moveOrigin) return apply(s, { type: "moveEnd", cancel: true });
       if (!s.active) return s;
-      if (isBlank(s, s.active)) return discardBlank(s, s.active);
-      const closed = closeNote(s, s.active);
-      return closed.active && closed.active !== s.active ? withFocus(closed, closed.active, "restore") : closed;
+      // 그 밖에는 어디서든 빈 곳을 누른 것처럼 선택만 푼다(글 입력 초점은 App이 뺀다). 패널은 닫지 않는다.
+      // 막 만들고 아무것도 안 쓴 노트는 없었던 일로 하고 선택도 푼다.
+      const base = isBlank(s, s.active) ? discardBlank(s, s.active) : s;
+      return { ...base, active: null, warn: false, focus: s.focus };
     }
 
     case "overlay":
       return { ...s, overlay: a.overlay };
 
     case "toast":
-      // 되돌리기 알림이 사라지거나 다른 알림으로 바뀌면 삭제가 확정된다
-      return {
-        ...s,
-        toast: a.message ? { message: a.message, seq: (s.toast?.seq ?? 0) + 1, error: a.error } : null,
-        deleted: null,
-      };
+      return { ...s, toast: a.message ? { message: a.message, seq: (s.toast?.seq ?? 0) + 1, error: a.error } : null };
 
     case "colWidth":
       return { ...s, colWidths: { ...s.colWidths, [a.depth]: a.width } };
@@ -595,15 +536,11 @@ export function reducer(s: State, a: Action): State {
       const prev = s.notes[a.id];
       if (!prev) return s;
       let next = setNotes(s, { ...s.notes, [a.id]: { ...prev, doc: a.doc, updated: nowIso() } });
-      const before = new Set(docLinks(prev.doc));
-      const after = new Set(docLinks(a.doc));
-      // 삭제 대기 중인 노트로 가는 링크가 다시 생기면(에디터의 되돌리기) 노트를 되살린다
-      const d = next.deleted;
-      if (d && d.targets.some((r) => after.has(r) && !before.has(r))) next = restoreDeleted(next, d, false);
       if (a.keep) return next;
       // 링크가 지워졌으면 그 노트와 하위 노트를 지운다(되돌리기 알림)
-      const removed = [...before].filter((id) => !after.has(id) && s.tree.parent[id] === a.id);
-      if (removed.length) next = deleteSubtrees(next, a.id, removed, s.tree, { before: prev.doc, after: a.doc });
+      const after = new Set(docLinks(a.doc));
+      const removed = docLinks(prev.doc).filter((id) => !after.has(id) && s.tree.parent[id] === a.id);
+      if (removed.length) next = deleteSubtrees(next, a.id, [...new Set(removed)], s.tree);
       return next;
     }
 
@@ -652,5 +589,114 @@ export function reducer(s: State, a: Action): State {
 
     case "hydrate":
       return { ...a.state, epoch: s.epoch + 1 };
+
+    case "undo":
+    case "redo":
+      return s; // reducer가 처리한다
   }
+}
+
+// ───── 전역 되돌리기 ─────
+// 노트 구조(노트 내용, 최상위 노트 순서, 열림, 최소화)를 바꾸는 동작은 바뀌기 전 모습을 기록에 쌓는다.
+// 설정, 화면 이동·확대, 패널 크기, 선택 이동은 기록하지 않는다.
+
+/** 기록은 이만큼만 남긴다 */
+const HISTORY_MAX = 300;
+/** 이어서 친 글은 이 간격 안이면 한 단계로 묶는다 */
+const TYPING_GAP = 1000;
+/** 한 단계로 묶는 글의 최대 길이(시간) */
+const TYPING_SPAN = 5000;
+
+const UNDOABLE = new Set<Action["type"]>([
+  "toggleLink",
+  "close",
+  "closeActive",
+  "toggleMinimize",
+  "delete",
+  "fixBroken",
+  "removeBroken",
+  "reorder",
+  "expandAll",
+  "collapseAll",
+  "escape",
+  "editDoc",
+  "setTitle",
+  "createNote",
+  "createRoot",
+  "addChild",
+  "addNotes",
+]);
+
+// 같은 순간에 잇달아 온 동작(예: 새 노트 만들기 + 링크 넣기, 잘라낸 것 빼기 + 붙이기)을 한 단계로 묶기 위한 번호.
+// 동기 코드가 끝나면(마이크로태스크) 다음 번호로 넘어간다.
+let tickNo = 0;
+let tickPending = false;
+function currentTick(): number {
+  if (!tickPending) {
+    tickPending = true;
+    queueMicrotask(() => {
+      tickNo++;
+      tickPending = false;
+    });
+  }
+  return tickNo;
+}
+
+function structureChanged(a: State, b: State): boolean {
+  return a.notes !== b.notes || a.roots !== b.roots || a.open !== b.open || a.minimized !== b.minimized;
+}
+
+/** 이 동작이 이어 친 글이면 무엇의 글인지. 링크가 생기거나 없어진 편집은 따로 한 단계로 둔다. */
+function typingGroup(s: State, a: Action): HistoryEntry["group"] {
+  if (a.type === "setTitle") return { kind: "title", id: a.id };
+  if (a.type === "editDoc" && !a.keep) {
+    const prev = s.notes[a.id];
+    if (prev && docLinks(prev.doc).join() === docLinks(a.doc).join()) return { kind: "text", id: a.id };
+  }
+  return null;
+}
+
+function entryOf(s: State, group: HistoryEntry["group"], now: number, tick: number): HistoryEntry {
+  return { notes: s.notes, roots: s.roots, open: s.open, minimized: s.minimized, active: s.active, group, start: now, last: now, tick };
+}
+
+/** 기록의 모습으로 되돌리고, 그때 선택한 패널을 다시 고른다 */
+function restoreEntry(s: State, e: HistoryEntry): State {
+  const next = setNotes({ ...s, roots: e.roots, open: e.open, minimized: e.minimized, warn: false }, e.notes);
+  const active = e.active && e.active in e.notes ? e.active : null;
+  const restored = { ...next, active, undoSeq: s.undoSeq + 1, toast: s.toast?.undo ? null : s.toast };
+  return active ? withFocus(restored, active, "restore") : restored;
+}
+
+export function reducer(s: State, a: Action): State {
+  if (a.type === "undo" || a.type === "redo") {
+    const from = a.type === "undo" ? s.past : s.future;
+    if (!from.length) return s;
+    const e = from[from.length - 1];
+    const back = entryOf(s, null, 0, -1);
+    const next = restoreEntry(s, e);
+    return a.type === "undo"
+      ? { ...next, past: s.past.slice(0, -1), future: [...s.future, back] }
+      : { ...next, future: s.future.slice(0, -1), past: [...s.past, back] };
+  }
+  const next = apply(s, a);
+  if (!UNDOABLE.has(a.type) || !structureChanged(s, next)) return next;
+  const now = Date.now();
+  const tick = currentTick();
+  const group = typingGroup(s, a);
+  const last = s.past[s.past.length - 1];
+  const merge =
+    last &&
+    (last.tick === tick ||
+      (group &&
+        last.group?.kind === group.kind &&
+        last.group.id === group.id &&
+        now - last.last < TYPING_GAP &&
+        now - last.start < TYPING_SPAN));
+  const past = merge
+    ? [...s.past.slice(0, -1), { ...last, last: now, tick }]
+    : [...s.past, entryOf(s, group, now, tick)].slice(-HISTORY_MAX);
+  // 새 동작이 쌓였으니 예전 삭제 알림의 되돌리기 버튼은 더 이상 그 삭제를 가리키지 않는다
+  const staleToast = !merge && next.toast?.undo && next.toast === s.toast;
+  return { ...next, past, future: [], toast: staleToast ? { ...next.toast!, undo: false } : next.toast };
 }

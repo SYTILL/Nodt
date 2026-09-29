@@ -1,5 +1,6 @@
 import { Extension, type Editor } from "@tiptap/core";
 import { Suggestion } from "@tiptap/suggestion";
+import { t } from "../i18n";
 import type { EditorApi, GetApi } from "./api";
 import { insertNewLink } from "./commands";
 
@@ -15,38 +16,39 @@ export interface SlashItem {
   run: (editor: Editor, api: EditorApi) => void;
 }
 
-const ITEMS: SlashItem[] = [
+// 항목 이름은 지금 언어로, 걸러 찾는 말(keywords)은 영어와 한국어 둘 다 받는다
+const items = (): SlashItem[] => [
   {
     id: "link",
-    label: "새 노트 링크",
+    label: t().slash.link,
     hint: "Ctrl+N",
     keywords: ["link", "note", "링크", "노트", "새"],
     run: (e, a) => insertNewLink(e, a),
   },
   {
     id: "heading",
-    label: "부제목",
+    label: t().slash.heading,
     hint: "##",
     keywords: ["heading", "h", "title", "부제목", "제목"],
     run: (e) => e.chain().focus().toggleHeading({ level: 2 }).run(),
   },
   {
     id: "bullet",
-    label: "글머리 목록",
+    label: t().slash.bullet,
     hint: "-",
     keywords: ["bullet", "list", "ul", "목록", "글머리"],
     run: (e) => e.chain().focus().toggleBulletList().run(),
   },
   {
     id: "task",
-    label: "체크 목록",
+    label: t().slash.task,
     hint: "[ ]",
     keywords: ["todo", "task", "check", "체크", "할일", "할 일"],
     run: (e) => e.chain().focus().toggleTaskList().run(),
   },
   {
     id: "delete",
-    label: "이 노트 삭제",
+    label: t().slash.del,
     danger: true,
     keywords: ["delete", "remove", "삭제", "지우기"],
     run: (_e, a) => a.animate(() => a.raw({ type: "delete", id: a.noteId })),
@@ -55,8 +57,8 @@ const ITEMS: SlashItem[] = [
 
 function filterItems(query: string): SlashItem[] {
   const q = query.trim().toLowerCase();
-  if (!q) return ITEMS;
-  return ITEMS.filter((it) => it.label.toLowerCase().includes(q) || it.keywords.some((k) => k.startsWith(q)));
+  if (!q) return items();
+  return items().filter((it) => it.label.toLowerCase().includes(q) || it.keywords.some((k) => k.startsWith(q)));
 }
 
 // ───── 메뉴 표시 상태(App의 SlashMenu가 그린다) ─────

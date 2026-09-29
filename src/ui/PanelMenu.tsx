@@ -1,4 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState, type Dispatch, type KeyboardEvent } from "react";
+import { t } from "../i18n";
 import { descendants } from "../model/notes";
 import type { Action, State } from "../state/store";
 
@@ -91,8 +92,8 @@ export function PanelMenu({
         y={menu.y}
         dispatch={dispatch}
         items={[
-          { label: "새 노트로 만들기", action: { type: "fixBroken", parent, n } },
-          { label: "삭제", action: { type: "removeBroken", parent, n }, danger: true, separated: true },
+          { label: t().menu.makeNote, action: { type: "fixBroken", parent, n } },
+          { label: t().menu.remove, action: { type: "removeBroken", parent, n }, danger: true, separated: true },
         ]}
       />
     );
@@ -100,9 +101,9 @@ export function PanelMenu({
   const id = menu.id;
   const desc = descendants(state.tree, id);
   const items: Item[] = [
-    { label: "하위 전체 펼치기", action: { type: "expandAll", id }, disabled: desc.length === 0 },
-    { label: "하위 전체 접기", action: { type: "collapseAll", id }, disabled: !desc.some((k) => state.open.has(k)) },
-    { label: "노트 삭제", action: { type: "delete", id }, danger: true, separated: true },
+    { label: t().menu.expandAll, action: { type: "expandAll", id }, disabled: desc.length === 0 },
+    { label: t().menu.collapseAll, action: { type: "collapseAll", id }, disabled: !desc.some((k) => state.open.has(k)) },
+    { label: t().menu.deleteNote, action: { type: "delete", id }, danger: true, separated: true },
   ];
   return <Dropdown x={menu.x} y={menu.y} items={items} dispatch={dispatch} />;
 }

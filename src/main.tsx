@@ -7,11 +7,17 @@ import { getCurrentWindow, type Window } from "@tauri-apps/api/window";
 // 처음부터 불러 둔다. 필요할 때 불러오면 개발 서버가 의존성을 다시 묶는 사이 옛 주소를 찾다가 실패한다.
 import { confirm } from "@tauri-apps/plugin-dialog";
 import App from "./App";
+import { isLang, setLang, t } from "./i18n";
 import { createSampleNotes } from "./model/sample";
 import { DEFAULT_SETTINGS, makeState } from "./state/store";
 import { getBackend, isTauri, type Backend } from "./storage/backend";
 import { boot, Saver, type WindowGeom } from "./storage/session";
 import { showToast, type Session } from "./ui/session";
+
+/** 주소의 ?lang=ko 처럼 언어를 정해서 띄운다(개발·자동 테스트용). 저장된 설정보다 앞선다. */
+const params = new URLSearchParams(location.search);
+const langParam = params.get("lang");
+const urlLang = isLang(langParam) ? langParam : undefined;
 
 /** 개발용 샘플 모드(주소에 ?sample). 저장하지 않는다. 자동 테스트가 이 모드로 돈다. */
 function sampleState() {
@@ -19,7 +25,7 @@ function sampleState() {
   return makeState(notes, [rootId], {
     open: new Set([ids.cs, ids.comp, ids.mid, ids.parser, ids.app]),
     active: ids.comp,
-    settings: DEFAULT_SETTINGS,
+    settings: { ...DEFAULT_SETTINGS, lang: urlLang ?? DEFAULT_SETTINGS.lang },
   });
 }
 
@@ -35,11 +41,8 @@ async function readGeom(win: Window, prev: WindowGeom | undefined): Promise<Wind
 async function changeDataDir(saver: Saver, backend: Backend, dir: string) {
   await saver.flush(false);
   if (await backend.hasNotes(dir)) {
-    const ok = await confirm("이 폴더에 이미 노트가 있어요. 그 노트를 불러올까요?\n지금 폴더의 노트는 그대로 남아요.", {
-      title: "데이터 폴더",
-      okLabel: "불러오기",
-      cancelLabel: "취소",
-    });
+    const S = t().settings;
+    const ok = await confirm(S.folderHasNotes, { title: S.dataDir, okLabel: S.load, cancelLabel: t().cancel });
     if (!ok) return;
   } else {
     // 빈 폴더면 지금 노트를 그대로 옮겨 쓴다
@@ -52,19 +55,22 @@ async function changeDataDir(saver: Saver, backend: Backend, dir: string) {
 async function start() {
   const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
 
-  if (new URLSearchParams(location.search).has("sample")) {
+  if (params.has("sample")) {
+    setLang(urlLang ?? DEFAULT_SETTINGS.lang);
     root.render(
       <React.StrictMode>
-        <App initial={sampleState()} session={{ kind: "sample", dataDir: "(샘플, 저장 안 함)" }} />
+        <App initial={sampleState()} session={{ kind: "sample", dataDir: t().sampleDir }} />
       </React.StrictMode>,
     );
     return;
   }
 
   const backend = getBackend();
-  const booted = await boot(backend);
+  const booted = await boot(backend, urlLang);
+  // 저장·오류 알림 같은 글이 처음부터 맞는 언어로 나오게 App보다 먼저 맞춘다
+  setLang(booted.state.settings.lang);
   const saver = new Saver(backend, booted.dataDir, booted.config, booted.texts, booted.window, (m) =>
-    showToast(`저장하지 못했어요 · ${m}`),
+    showToast(t().saveFailed(m)),
   );
   const session: Session = {
     kind: backend.kind,
@@ -106,7 +112,7 @@ async function start() {
       }
     });
     // 백업 스냅샷: 시작할 때 한 번, 그 뒤로 1분마다 주기가 된 단계만
-    const tick = () => backend.backupTick(saver.dataDir).catch((e) => console.error("백업 실패", e));
+    const tick = () => backend.backupTick(saver.dataDir).catch((e) => console.error("backup failed", e));
     setTimeout(tick, 5000);
     setInterval(tick, 60_000);
   }

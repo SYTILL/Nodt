@@ -1,4 +1,5 @@
 import { buildTree, type Note, type NoteId, type Notes } from "../model/notes";
+import { isLang, setLang, type Lang } from "../i18n";
 import { createTutorial } from "../model/tutorial";
 import { DEFAULT_SETTINGS, makeState, reachable, rootsOf, type Settings, type State, type View } from "../state/store";
 import { THEMES } from "../theme/themes";
@@ -53,6 +54,7 @@ function parseJson<T>(text: string | null | undefined): T | null {
 export function normalizeSettings(raw: unknown): Settings {
   const r = (raw ?? {}) as Record<string, unknown>;
   const s = { ...DEFAULT_SETTINGS };
+  if (isLang(r.lang)) s.lang = r.lang;
   if (r.openMode === "add" || r.openMode === "replace") s.openMode = r.openMode;
   if (typeof r.lines === "boolean") s.lines = r.lines;
   if (THEMES.some((t) => t.id === r.theme)) s.theme = r.theme as Settings["theme"];
@@ -64,7 +66,7 @@ export function normalizeSettings(raw: unknown): Settings {
 
 /** 사용법 노트로 된 처음 상태(처음 켤 때, 초기화할 때). 설정은 넘겨받은 그대로 둔다. */
 export function freshState(settings: Settings): State {
-  const t = createTutorial();
+  const t = createTutorial(settings.lang);
   return makeState(t.notes, t.roots, {
     settings,
     open: t.open,
@@ -89,10 +91,13 @@ export interface Booted {
   window?: WindowGeom;
 }
 
-export async function boot(backend: Backend): Promise<Booted> {
+/** lang: 저장된 설정 대신 쓸 언어(주소의 ?lang=, 개발·테스트용) */
+export async function boot(backend: Backend, lang?: Lang): Promise<Booted> {
   const config: Config = parseJson<Config>(await backend.readConfig()) ?? {};
-  const dataDir = config.dataDir || (await backend.defaultDataDir());
   const settings = normalizeSettings(config.settings);
+  if (lang) settings.lang = lang;
+  setLang(settings.lang);
+  const dataDir = config.dataDir || (await backend.defaultDataDir());
   const loaded = await backend.loadAll(dataDir);
 
   const notes: Notes = {};
@@ -155,7 +160,7 @@ export function noteText(s: State, id: NoteId): string {
 
 /**
  * 실시간 저장. 입력이 멈추고 약 1초 뒤에 바뀐 노트만 쓴다. 앱을 닫을 때는 바로 쓴다.
- * 최상위 노트에서 닿는 노트만 저장한다. 되돌리기 알림이 떠 있는 삭제는 알림이 사라질 때(또는 앱을 닫을 때) 파일을 지운다.
+ * 최상위 노트에서 닿는 노트만 저장한다. 상태에서 사라진 노트는 파일도 지운다(되돌리면 다시 쓴다. 앱을 끈 뒤에는 백업으로 살린다).
  */
 export class Saver {
   private texts: Map<NoteId, string>;
@@ -200,14 +205,14 @@ export class Saver {
     this.timer = window.setTimeout(() => void this.flush(false), 1000);
   }
 
-  /** final: 앱을 닫을 때. 기다리던 삭제를 확정한다. */
-  flush(final: boolean): Promise<void> {
+  /** 기다리지 않고 바로 쓴다. _final(앱을 닫을 때인지)은 예전 호출 모양을 지키려고 남겨 둔다. */
+  flush(_final = false): Promise<void> {
     clearTimeout(this.timer);
-    this.chain = this.chain.then(() => this.write(final)).catch((e) => this.onError(String(e)));
+    this.chain = this.chain.then(() => this.write()).catch((e) => this.onError(String(e)));
     return this.chain;
   }
 
-  private async write(final: boolean) {
+  private async write() {
     const s = this.latest;
     if (!s || this.stopped) return;
     const b = this.backend;
@@ -226,10 +231,9 @@ export class Saver {
       this.seen.set(id, { note, parent });
     }
 
-    // 상태에서 사라진 노트는 파일도 지운다. 되돌리기를 기다리는 노트는 앱을 닫을 때까지 남긴다.
-    const pending = new Set(final ? [] : (s.deleted?.notes ?? []).map((n) => n.id));
+    // 상태에서 사라진 노트는 파일도 지운다
     for (const id of [...this.texts.keys()]) {
-      if (id in s.notes || pending.has(id)) continue;
+      if (id in s.notes) continue;
       await b.deleteNote(dir, id);
       this.texts.delete(id);
       this.seen.delete(id);

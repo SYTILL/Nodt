@@ -3,64 +3,10 @@ import { useEffect, useRef, useState, type Dispatch, type KeyboardEvent, type Re
 import type { BackupInfo } from "../storage/backend";
 import { emptyState, freshState } from "../storage/session";
 import type { Action, Overlay, Settings } from "../state/store";
+import { LANGUAGES, t } from "../i18n";
 import { THEMES } from "../theme/themes";
 import { IconX } from "./icons";
 import type { Session } from "./session";
-
-// 단축키 도움말 (스펙 5장). [키, 설명] 묶음별
-const HELP: [string, [string, string][]][] = [
-  [
-    "노트와 링크",
-    [
-      ["Ctrl+N", "새 노트 링크 만들기 · 제목에 있으면 본문 끝에 · 선택한 패널이 없으면 새 최상위 노트"],
-      ["/", "명령 메뉴 (줄 맨 앞이나 공백 뒤)"],
-      ["Ctrl+Enter", "커서 바로 앞 링크 열기/닫기 · 깨진 링크면 새 노트로"],
-      ["Tab / Enter", "제목에서 본문으로"],
-      ["↑", "본문 첫 줄에서 제목으로"],
-      ["Tab / Shift+Tab", "목록 들여쓰기 / 내어쓰기"],
-      ["Backspace", "깨진 링크 바로 뒤에서 지우기"],
-    ],
-  ],
-  [
-    "패널",
-    [
-      ["Esc", "선택한 패널 닫기 (메뉴·모드가 떠 있으면 그것부터)"],
-      ["Ctrl+W", "선택한 패널 닫기 · 최상위 노트는 최소화 / 복원"],
-      ["빈 곳 클릭", "선택 풀기"],
-      ["Alt+← / Alt+→", "부모 / 첫 번째로 열린 자식 패널로"],
-      ["Alt+↑ / Alt+↓", "같은 컬럼의 위 / 아래 패널로"],
-      ["Alt+Shift+↑ / Alt+Shift+↓", "같은 부모 안에서 순서 바꾸기"],
-      ["Ctrl+Tab", "패널이동모드 (방향키 이동, Enter 선택, Esc 취소)"],
-    ],
-  ],
-  [
-    "화면",
-    [
-      ["빈 곳 끌기", "화면 옮기기"],
-      ["휠", "확대 / 축소"],
-      ["Ctrl+0", "원래 위치, 100%로"],
-    ],
-  ],
-  [
-    "복사와 이동",
-    [
-      ["Ctrl+C → Ctrl+V", "링크는 깨진 링크로 붙음"],
-      ["Ctrl+C → Ctrl+Shift+V", "하위 노트까지 복제해서 붙이기"],
-      ["Ctrl+X → Ctrl+V", "옮기기 (부모 바꾸기) · Esc로 취소"],
-      ["Ctrl+Z", "삭제 알림이 떠 있으면 삭제 되돌리기"],
-    ],
-  ],
-  [
-    "서식",
-    [
-      ["Ctrl+B", "굵게"],
-      ["Ctrl+Shift+S", "취소선"],
-      ["## + 공백", "부제목"],
-      ["- + 공백", "글머리 목록"],
-      ["[ ] + 공백", "체크 목록"],
-    ],
-  ],
-];
 
 interface Props {
   overlay: Overlay;
@@ -71,6 +17,7 @@ interface Props {
 
 export function OverlayView({ overlay, settings, dispatch, session }: Props) {
   const close = () => dispatch({ type: "overlay", overlay: null });
+  const T = t();
   return (
     <div
       className="ovl"
@@ -79,8 +26,8 @@ export function OverlayView({ overlay, settings, dispatch, session }: Props) {
       }}
     >
       {overlay.kind === "help" && (
-        <Sheet title="단축키" onClose={close} wide>
-          {HELP.map(([group, rows]) => (
+        <Sheet title={T.help.title} onClose={close} wide>
+          {T.help.groups.map(([group, rows]) => (
             <div key={group} className="help-group">
               <span className="lbl">{group}</span>
               <table>
@@ -116,7 +63,7 @@ export function OverlayView({ overlay, settings, dispatch, session }: Props) {
           <p className="msg">{overlay.message}</p>
           <div className="acts">
             <button type="button" className="sbtn" onClick={close}>
-              취소
+              {T.cancel}
             </button>
             <button
               type="button"
@@ -153,6 +100,7 @@ function ResetSheet({
   onClose: () => void;
   session: Session;
 }) {
+  const T = t();
   const [busy, setBusy] = useState(false);
   const [kind, setKind] = useState<"tutorial" | "all">("all");
   async function reset() {
@@ -162,13 +110,13 @@ function ResetSheet({
       dispatch({ type: "hydrate", state: kind === "tutorial" ? freshState(settings) : emptyState(settings) });
     } catch (e) {
       setBusy(false);
-      dispatch({ type: "toast", message: `초기화하지 못했어요 · ${String(e)}`, error: true });
+      dispatch({ type: "toast", message: T.reset.failed(String(e)), error: true });
     }
   }
   return (
-    <div className="sheet" role="alertdialog" aria-label="초기화">
-      <h4>초기화할까요?</h4>
-      <p className="msg">모든 노트와 화면 배치가 지워져요. 설정은 그대로예요.</p>
+    <div className="sheet" role="alertdialog" aria-label={T.reset.ok}>
+      <h4>{T.reset.title}</h4>
+      <p className="msg">{T.reset.msg}</p>
       <div className="opt">
         <Radios
           name="resetKind"
@@ -179,53 +127,45 @@ function ResetSheet({
             [
               "all",
               <span>
-                <strong>완전 초기화</strong> · 빈 화면에서 시작
+                <strong>{T.reset.all}</strong> · {T.reset.allNote}
               </span>,
             ],
             [
               "tutorial",
               <span>
-                <strong>사용법 노트로</strong> · 처음 켰을 때처럼
+                <strong>{T.reset.tutorial}</strong> · {T.reset.tutorialNote}
               </span>,
             ],
           ]}
         />
       </div>
       <p className="note">
-        지우기 직전의 노트는 데이터 폴더의 <code>{"backups\\reset"}</code>에 한 벌 남겨 둬요.
+        {T.reset.backupNote[0]}
+        <code>{"backups\\reset"}</code>
+        {T.reset.backupNote[1]}
       </p>
       <div className="acts">
         <button type="button" className="sbtn" autoFocus onClick={onClose} disabled={busy}>
-          취소
+          {T.cancel}
         </button>
         <button type="button" className="sbtn danger" onClick={() => void reset()} disabled={busy}>
-          초기화
+          {T.reset.ok}
         </button>
       </div>
     </div>
   );
 }
 
-const TIER_LABEL: Record<string, string> = {
-  "5min": "5분 단위",
-  "2h": "2시간 단위",
-  "1d": "하루 단위",
-  "1w": "일주일 단위",
-  "1m": "한 달 단위",
-  reset: "초기화 직전",
-  restore: "되돌리기 직전",
-};
-
-/** 백업 시각을 "오늘 14:05", "어제 09:30", "9월 25일 14:05"처럼 */
+/** 백업 시각을 "Today 14:05", "Yesterday 09:30", "Sep 25 14:05"처럼(한국어: 오늘, 어제, 9월 25일) */
 function backupWhen(secs: number): string {
+  const R = t().restore;
   const d = new Date(secs * 1000);
   const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  const day = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((day(new Date()) - day(d)) / 86_400_000);
-  if (diff === 0) return `오늘 ${hm}`;
-  if (diff === 1) return `어제 ${hm}`;
-  const year = d.getFullYear() === new Date().getFullYear() ? "" : `${d.getFullYear()}년 `;
-  return `${year}${d.getMonth() + 1}월 ${d.getDate()}일 ${hm}`;
+  if (diff === 0) return R.today(hm);
+  if (diff === 1) return R.yesterday(hm);
+  return R.date(d, hm, d.getFullYear() !== new Date().getFullYear());
 }
 
 /**
@@ -233,6 +173,7 @@ function backupWhen(secs: number): string {
  * 되돌리기 직전 상태는 backups\restore에 남으므로 되돌린 것도 다시 되돌릴 수 있다.
  */
 function RestoreSheet({ dispatch, onClose, session }: { dispatch: Dispatch<Action>; onClose: () => void; session: Session }) {
+  const R = t().restore;
   const [list, setList] = useState<BackupInfo[] | null>(null);
   const [pick, setPick] = useState<BackupInfo | null>(null);
   const [busy, setBusy] = useState(false);
@@ -245,7 +186,7 @@ function RestoreSheet({ dispatch, onClose, session }: { dispatch: Dispatch<Actio
       .catch((e) => {
         if (!live) return;
         setList([]);
-        dispatch({ type: "toast", message: `백업 목록을 읽지 못했어요 · ${String(e)}`, error: true });
+        dispatch({ type: "toast", message: t().restore.listFailed(String(e)), error: true });
       });
     return () => {
       live = false;
@@ -271,24 +212,26 @@ function RestoreSheet({ dispatch, onClose, session }: { dispatch: Dispatch<Actio
       await session.restoreBackup?.(b.id);
     } catch (e) {
       setBusy(false);
-      dispatch({ type: "toast", message: `되돌리지 못했어요 · ${String(e)}`, error: true });
+      dispatch({ type: "toast", message: R.failed(String(e)), error: true });
     }
   }
 
   if (pick) {
     return (
-      <div className="sheet" role="alertdialog" aria-label="백업에서 되돌리기">
-        <h4>{backupWhen(pick.secs)} 백업으로 되돌릴까요?</h4>
-        <p className="msg">노트와 화면 배치가 그때로 돌아가요. 노트 {pick.notes}개.</p>
+      <div className="sheet" role="alertdialog" aria-label={R.title}>
+        <h4>{R.confirm(backupWhen(pick.secs))}</h4>
+        <p className="msg">{R.confirmMsg(pick.notes)}</p>
         <p className="note">
-          지금 노트는 데이터 폴더의 <code>{"backups\\restore"}</code>에 남겨 두니, 되돌린 것도 다시 되돌릴 수 있어요.
+          {R.keepNote[0]}
+          <code>{"backups\\restore"}</code>
+          {R.keepNote[1]}
         </p>
         <div className="acts">
           <button type="button" className="sbtn" autoFocus onClick={() => setPick(null)} disabled={busy}>
-            취소
+            {t().cancel}
           </button>
           <button type="button" className="sbtn danger" onClick={() => void restore(pick)} disabled={busy}>
-            되돌리기
+            {R.ok}
           </button>
         </div>
       </div>
@@ -296,18 +239,18 @@ function RestoreSheet({ dispatch, onClose, session }: { dispatch: Dispatch<Actio
   }
 
   return (
-    <Sheet title="백업에서 되돌리기" onClose={onClose} focusClose={!list?.length}>
+    <Sheet title={R.title} onClose={onClose} focusClose={!list?.length}>
       {list === null ? (
-        <p className="msg">백업을 찾는 중…</p>
+        <p className="msg">{R.loading}</p>
       ) : list.length === 0 ? (
-        <p className="msg">아직 백업이 없어요. 앱을 켜 두면 5분마다 바뀐 게 있을 때 남아요.</p>
+        <p className="msg">{R.none}</p>
       ) : (
         <div className="backup-list" ref={listRef} onKeyDown={onListKey}>
           {list.map((b) => (
             <button type="button" key={b.id} onClick={() => setPick(b)}>
               <span className="when">{backupWhen(b.secs)}</span>
               <span className="meta">
-                {TIER_LABEL[b.tier] ?? b.tier} · 노트 {b.notes}개
+                {R.tiers[b.tier] ?? b.tier} · {R.notes(b.notes)}
               </span>
             </button>
           ))}
@@ -335,7 +278,7 @@ function Sheet({
     <div className={"sheet" + (wide ? " wide" : "")} role="dialog" aria-label={title}>
       <h4>
         {title}
-        <button type="button" className="ib" title="닫기" aria-label="닫기" autoFocus={focusClose} onClick={onClose}>
+        <button type="button" className="ib" title={t().close} aria-label={t().close} autoFocus={focusClose} onClick={onClose}>
           <IconX />
         </button>
       </h4>
@@ -384,6 +327,7 @@ function SettingsSheet({
   session: Session;
 }) {
   const set = (patch: Partial<Settings>) => dispatch({ type: "settings", patch });
+  const S = t().settings;
   const [dir, setDir] = useState(session.dataDir);
   const edited = dir.trim() !== session.dataDir;
 
@@ -393,86 +337,90 @@ function SettingsSheet({
     const target = next.trim().replace(/(?<!:)[\\/]+$/, "");
     if (!target || target === session.dataDir) return;
     if (!/^([A-Za-z]:[\\/]|\\\\)/.test(target)) {
-      dispatch({ type: "toast", message: "C:\\... 처럼 전체 경로로 적어 주세요" });
+      dispatch({ type: "toast", message: S.fullPath });
       return;
     }
     try {
       await session.changeDataDir?.(target);
     } catch (e) {
-      dispatch({ type: "toast", message: `데이터 폴더를 바꾸지 못했어요 · ${String(e)}`, error: true });
+      dispatch({ type: "toast", message: S.changeFailed(String(e)), error: true });
     }
   }
 
   async function pickFolder() {
     try {
-      const picked = await open({ directory: true, title: "데이터 폴더 고르기", defaultPath: session.dataDir });
+      const picked = await open({ directory: true, title: S.pickTitle, defaultPath: session.dataDir });
       if (typeof picked === "string") {
         setDir(picked);
         await apply(picked);
       }
     } catch (e) {
-      dispatch({ type: "toast", message: `폴더 고르기 창을 열지 못했어요 · ${String(e)}`, error: true });
+      dispatch({ type: "toast", message: S.pickFailed(String(e)), error: true });
     }
   }
 
   return (
-    <Sheet title="설정" onClose={onClose}>
+    <Sheet title={S.title} onClose={onClose}>
       <div className="opt">
-        <span className="lbl">패널 열기 방식</span>
+        <span className="lbl">{S.language}</span>
+        <Radios name="lang" value={settings.lang} onChange={(lang) => set({ lang })} options={LANGUAGES} />
+      </div>
+      <div className="opt">
+        <span className="lbl">{S.openMode}</span>
         <Radios
           name="openMode"
           column
           value={settings.openMode}
           onChange={(openMode) => set({ openMode })}
           options={[
-            ["add", "추가: 형제 노트를 여러 개 열어둠"],
-            ["replace", "교체: 같은 부모의 다른 노트는 닫음"],
+            ["add", S.openAdd],
+            ["replace", S.openReplace],
           ]}
         />
       </div>
       <div className="opt">
-        <span className="lbl">연결선</span>
+        <span className="lbl">{S.lines}</span>
         <Radios
           name="lines"
           value={settings.lines ? "on" : "off"}
           onChange={(v) => set({ lines: v === "on" })}
           options={[
-            ["on", "켜기"],
-            ["off", "끄기"],
+            ["on", S.on],
+            ["off", S.off],
           ]}
         />
       </div>
       <div className="opt">
-        <span className="lbl">테마</span>
+        <span className="lbl">{S.theme}</span>
         <Radios
           name="theme"
           grid
           value={settings.theme}
           onChange={(theme) => set({ theme })}
-          options={THEMES.map((t) => [
-            t.id,
+          options={THEMES.map((th) => [
+            th.id,
             <>
-              <span className="swatch" style={{ background: t.light.accent }} />
-              {t.name}
+              <span className="swatch" style={{ background: th.light.accent }} />
+              {t().themes[th.id]}
             </>,
           ])}
         />
       </div>
       <div className="opt">
-        <span className="lbl">밝기</span>
+        <span className="lbl">{S.brightness}</span>
         <Radios
           name="brightness"
           value={settings.brightness}
           onChange={(brightness) => set({ brightness })}
           options={[
-            ["light", "라이트"],
-            ["dark", "다크"],
-            ["system", "시스템 설정 따르기"],
+            ["light", S.light],
+            ["dark", S.dark],
+            ["system", S.system],
           ]}
         />
       </div>
       <div className="opt">
-        <span className="lbl">배경 효과</span>
+        <span className="lbl">{S.backdrop}</span>
         <Radios
           name="backdrop"
           value={settings.backdrop}
@@ -480,14 +428,14 @@ function SettingsSheet({
           options={[
             ["mica", "Mica"],
             ["acrylic", "Acrylic"],
-            ["none", "끄기"],
+            ["none", S.off],
           ]}
         />
-        <span className="note">Mica는 바탕화면 색이 은은하게, Acrylic은 뒤에 있는 창까지 뿌옇게 비쳐요.</span>
+        <span className="note">{S.backdropNote}</span>
       </div>
       {settings.backdrop !== "none" && (
         <div className="opt">
-          <span className="lbl">배경 투명도</span>
+          <span className="lbl">{S.transparency}</span>
           <div className="slider">
             <input
               type="range"
@@ -495,23 +443,23 @@ function SettingsSheet({
               max={100}
               step={5}
               value={settings.transparency}
-              aria-label="배경 투명도"
+              aria-label={S.transparency}
               onChange={(e) => set({ transparency: Number(e.target.value) })}
             />
             <output>{settings.transparency}%</output>
           </div>
-          <span className="note">창 배경과 상단바에 바탕화면 색이 비치는 정도예요. 패널은 그대로예요.</span>
+          <span className="note">{S.transparencyNote}</span>
         </div>
       )}
       <div className="opt">
-        <span className="lbl">데이터 폴더</span>
+        <span className="lbl">{S.dataDir}</span>
         <div className="folder">
           <input
             className="path"
             value={dir}
             spellCheck={false}
             readOnly={!session.changeDataDir}
-            aria-label="데이터 폴더 경로"
+            aria-label={S.dataDirPath}
             onChange={(e) => setDir(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.nativeEvent.isComposing) void apply(dir);
@@ -520,15 +468,15 @@ function SettingsSheet({
           {session.changeDataDir &&
             (edited ? (
               <button type="button" className="sbtn primary" onClick={() => void apply(dir)}>
-                바꾸기
+                {S.change}
               </button>
             ) : (
               <button type="button" className="sbtn" onClick={() => void pickFolder()}>
-                폴더 고르기
+                {S.pick}
               </button>
             ))}
         </div>
-        <span className="note">백업은 이 폴더의 backups에 5분·2시간·1일·1주·1달 단위로 남아요.</span>
+        <span className="note">{S.backupsNote}</span>
         {session.listBackups && (
           <div>
             <button
@@ -536,7 +484,7 @@ function SettingsSheet({
               className="sbtn"
               onClick={() => dispatch({ type: "overlay", overlay: { kind: "restore" } })}
             >
-              백업에서 되돌리기
+              {S.restore}
             </button>
           </div>
         )}

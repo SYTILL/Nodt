@@ -29,4 +29,5 @@
 - `npm run dev`: 브라우저에서 본다(http://localhost:1420). 파일 대신 localStorage에 저장한다. `?sample`을 붙이면 저장하지 않는 샘플 노트로 뜬다.
 - `npm run build`: 타입 검사와 프론트엔드 빌드를 한다.
 - `cargo test --lib` (src-tauri 안): 파일 저장과 백업 테스트.
+- 화면 글은 영어가 기본이고 `src/i18n.ts`에 영어·한국어로 모여 있다. 화면에 글을 더할 때는 두 언어를 함께 넣는다. 주소에 `?lang=ko`를 붙이면 한국어로 뜬다(자동 테스트는 이걸 쓴다).
 - 실제 노트를 건드리지 않고 앱을 띄우려면 `NODT_DATA_DIR`, `NODT_CONFIG_DIR` 환경변수로 폴더를 바꾼다.

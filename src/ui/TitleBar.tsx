@@ -1,4 +1,5 @@
 import { useEffect, useState, type Dispatch } from "react";
+import { t } from "../i18n";
 import { minimizeWindow, quitApp, toggleMaximizeWindow, watchMaximized } from "../platform";
 import type { Action } from "../state/store";
 import { IconGear, IconHelp, IconReset, IconLogo, IconWinClose, IconWinMaximize, IconWinMinimize, IconWinRestore } from "./icons";
@@ -13,6 +14,7 @@ interface Props {
 
 export function TitleBar({ warn, dispatch }: Props) {
   const [maximized, setMaximized] = useState(false);
+  const T = t().titleBar;
 
   useEffect(() => {
     let off: (() => void) | undefined;
@@ -34,8 +36,8 @@ export function TitleBar({ warn, dispatch }: Props) {
         <button
           type="button"
           className="ib"
-          title="초기화"
-          aria-label="초기화"
+          title={T.reset}
+          aria-label={T.reset}
           onClick={() => dispatch({ type: "overlay", overlay: { kind: "reset" } })}
         >
           <IconReset />
@@ -43,8 +45,8 @@ export function TitleBar({ warn, dispatch }: Props) {
         <button
           type="button"
           className="ib"
-          title="설정"
-          aria-label="설정"
+          title={T.settings}
+          aria-label={T.settings}
           onClick={() => dispatch({ type: "overlay", overlay: { kind: "settings" } })}
         >
           <IconGear />
@@ -52,21 +54,21 @@ export function TitleBar({ warn, dispatch }: Props) {
         <button
           type="button"
           className="ib"
-          title="단축키 도움말"
-          aria-label="단축키 도움말"
+          title={T.help}
+          aria-label={T.help}
           onClick={() => dispatch({ type: "overlay", overlay: { kind: "help" } })}
         >
           <IconHelp />
         </button>
       </div>
       <div className="wctl">
-        <button type="button" title="최소화" aria-label="최소화" onClick={() => void minimizeWindow()}>
+        <button type="button" title={T.minimize} aria-label={T.minimize} onClick={() => void minimizeWindow()}>
           <IconWinMinimize />
         </button>
         <button
           type="button"
-          title={maximized ? "이전 크기로" : "최대화"}
-          aria-label={maximized ? "이전 크기로" : "최대화"}
+          title={maximized ? T.unmaximize : T.maximize}
+          aria-label={maximized ? T.unmaximize : T.maximize}
           onClick={() => void toggleMaximizeWindow()}
         >
           {maximized ? <IconWinRestore /> : <IconWinMaximize />}
@@ -74,8 +76,8 @@ export function TitleBar({ warn, dispatch }: Props) {
         <button
           type="button"
           className={"close" + (warn ? " warn" : "")}
-          title="닫기"
-          aria-label="닫기"
+          title={T.close}
+          aria-label={T.close}
           onClick={() => void quitApp()}
         >
           <IconWinClose />

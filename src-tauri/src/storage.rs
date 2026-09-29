@@ -78,14 +78,14 @@ pub fn load_all(data: &Path) -> io::Result<Loaded> {
 
 pub fn write_note(data: &Path, id: &str, text: &str) -> io::Result<()> {
     if !valid_id(id) {
-        return Err(invalid("잘못된 노트 ID"));
+        return Err(invalid("invalid note id"));
     }
     write_atomic(&notes_dir(data).join(format!("{id}.md")), text)
 }
 
 pub fn delete_note(data: &Path, id: &str) -> io::Result<()> {
     if !valid_id(id) {
-        return Err(invalid("잘못된 노트 ID"));
+        return Err(invalid("invalid note id"));
     }
     let path = notes_dir(data).join(format!("{id}.md"));
     if path.exists() {
@@ -288,13 +288,13 @@ pub fn list_backups(data: &Path) -> Vec<BackupInfo> {
 
 /// id("단계/시각")를 백업 폴더 경로로. 목록에 나올 수 있는 모양만 받는다.
 fn backup_path(data: &Path, id: &str) -> io::Result<PathBuf> {
-    let (tier, name) = id.split_once('/').ok_or_else(|| invalid("잘못된 백업 이름"))?;
+    let (tier, name) = id.split_once('/').ok_or_else(|| invalid("invalid backup name"))?;
     if !RESTORE_TIERS.contains(&tier) || parse_stamp(name).is_none() {
-        return Err(invalid("잘못된 백업 이름"));
+        return Err(invalid("invalid backup name"));
     }
     let path = data.join("backups").join(tier).join(name);
     if !path.join("notes").is_dir() {
-        return Err(invalid("백업이 없음"));
+        return Err(invalid("backup not found"));
     }
     Ok(path)
 }

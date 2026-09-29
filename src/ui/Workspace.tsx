@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type PointerEvent } from "react";
 import { flushSync } from "react-dom";
+import { t } from "../i18n";
 import { growWindow } from "../platform";
 import { columns, lineage, lineageStrength, type Action, type State, type View } from "../state/store";
 import { Panel } from "./Panel";
@@ -91,7 +92,8 @@ export function Workspace({ state, dispatch }: Props) {
     // 마지막 컬럼의 오른쪽 여백(다음 컬럼과의 간격 자리)은 내용에서 뺀다
     const last = cols.lastElementChild as HTMLElement | null;
     const tail = last ? parseFloat(getComputedStyle(last).paddingRight) || 0 : 0;
-    const slack = (stateRef.current.settings.lines ? LINES_EXTRA : 0) * z;
+    // 연결선을 켜든 끄든 경계는 연결선이 있을 때의 간격(34px)으로 고정한다(설정에 따라 바뀌면 헷갈린다)
+    const slack = LINES_EXTRA * z;
     const x = range(root.clientWidth, (cols.offsetWidth - tail) * z, slack);
     const y = range(root.clientHeight, cols.offsetHeight * z, slack);
     return { minX: x.lo, maxX: x.hi, minY: y.lo, maxY: y.hi };
@@ -120,15 +122,15 @@ export function Workspace({ state, dispatch }: Props) {
     inertia.current = requestAnimationFrame(step);
   };
   /** 넘어 있으면 경계로 튕겨 돌아온다 */
-  const settle = useRef(() => {});
-  settle.current = () => {
+  const settle = useRef((_transition?: string) => {});
+  settle.current = (transition: string = BOUNCE) => {
     const v = view.current;
     const b = bounds(v.z);
     const x = Math.min(b.maxX, Math.max(b.minX, v.x));
     const y = Math.min(b.maxY, Math.max(b.minY, v.y));
     if (x === v.x && y === v.y) return;
     view.current = { ...v, x, y };
-    applyView(BOUNCE);
+    applyView(transition);
   };
 
   // 휠: 본문이 스크롤되는 패널 위면 본문을 스크롤하고, 아니면 커서 위치를 기준으로 확대·축소한다
@@ -227,14 +229,19 @@ export function Workspace({ state, dispatch }: Props) {
 
   // 선택한 패널이 화면 밖으로 나가 있으면 부드럽게 끌어와 보여준다.
   // 선택이 바뀔 때, 그리고 패널 배치 애니메이션이 끝났을 때(순서 바꾸기, 새 노트 등으로 밀려났을 수 있다) 확인한다.
+  // 목표 위치는 끌기 저항이 걸리는 경계 안으로 맞춘다. 경계 밖에 두면 다음에 끌 때 처음부터 저항이 걸려
+  // 경계가 달라진 것처럼 느껴진다. 선택이 없거나 패널이 닫혀 내용이 줄었을 때도 경계 밖이면 안으로 옮긴다.
   const follow = useRef(() => {});
   follow.current = () => {
     const root = rootRef.current;
     const canvas = canvasRef.current;
     const active = stateRef.current.active;
-    if (!root || !canvas || !active || pan.current) return;
-    const el = root.querySelector<HTMLElement>(`.panel[data-id="${active}"]`);
-    if (!el) return;
+    if (!root || !canvas || pan.current) return;
+    const el = active ? root.querySelector<HTMLElement>(`.panel[data-id="${active}"]`) : null;
+    if (!el) {
+      settle.current(GLIDE);
+      return;
+    }
     // 화면 이동 애니메이션이 도는 중일 수 있으므로, 캔버스 안 위치에서 목표 화면 위치를 계산한다
     const w = root.getBoundingClientRect();
     const c = canvas.getBoundingClientRect();
@@ -253,12 +260,28 @@ export function Workspace({ state, dispatch }: Props) {
     if (left + dx < 0) dx = EDGE - left;
     if (bottom > H) dy = H - EDGE - bottom;
     if (top + dy < 0) dy = EDGE - top;
-    if (!dx && !dy) return;
+    const b = bounds(z);
+    const tx = Math.min(b.maxX, Math.max(b.minX, x + dx));
+    const ty = Math.min(b.maxY, Math.max(b.minY, y + dy));
+    if (tx === x && ty === y) return;
     stopInertia();
-    view.current = { ...view.current, x: view.current.x + dx, y: view.current.y + dy };
+    view.current = { ...view.current, x: tx, y: ty };
     applyView(GLIDE);
   };
   useEffect(() => follow.current(), [state.active]);
+  // 창 크기가 바뀌면 경계도 바뀐다. 멈춘 뒤 경계 밖이면 안으로 옮긴다.
+  useEffect(() => {
+    let t = 0;
+    const on = () => {
+      clearTimeout(t);
+      t = window.setTimeout(() => settle.current(GLIDE), 150);
+    };
+    window.addEventListener("resize", on);
+    return () => {
+      window.removeEventListener("resize", on);
+      clearTimeout(t);
+    };
+  }, []);
   useEffect(() => {
     const on = () => follow.current();
     window.addEventListener(SETTLED_EVENT, on);
@@ -430,7 +453,7 @@ export function Workspace({ state, dispatch }: Props) {
       </div>
       {cols.length === 0 && (
         <div className="empty-hint">
-          <kbd>Ctrl+N</kbd> 으로 새 노트
+          <kbd>Ctrl+N</kbd> {t().emptyHint}
         </div>
       )}
     </div>

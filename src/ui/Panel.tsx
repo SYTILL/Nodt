@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/core";
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type Dispatch, type PointerEvent, type ReactNode } from "react";
-import type { NoteId } from "../model/notes";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type PointerEvent, type ReactNode } from "react";
+import { t } from "../i18n";
+import { linkLeadText, type NoteId } from "../model/notes";
 import type { Action, State } from "../state/store";
 import { IconMinimize, IconRestore, IconX } from "./icons";
 import { NoteEditor } from "./NoteEditor";
@@ -28,7 +29,11 @@ interface Props {
 
 export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidthCommit, extra }: Props) {
   const note = state.notes[id];
-  const isRoot = !state.tree.parent[id];
+  const parentId = state.tree.parent[id];
+  const isRoot = !parentId;
+  // 제목 자리 안내: 최상위 노트는 "제목 없음", 하위 노트는 부모 본문에서 링크 앞에 쓴 글(없으면 비움)
+  const parentDoc = parentId ? state.notes[parentId]?.doc : undefined;
+  const placeholder = useMemo(() => (parentDoc ? linkLeadText(parentDoc, id) : t().untitled), [parentDoc, id, state.settings.lang]);
   const isActive = state.active === id;
   const warn = isRoot && isActive && state.warn;
   const minimized = state.minimized.has(id);
@@ -97,9 +102,9 @@ export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidt
           ref={titleRef}
           className="ptitle"
           value={note.title}
-          placeholder={isRoot ? "제목 없음" : ""}
+          placeholder={placeholder}
           spellCheck={false}
-          aria-label="제목"
+          aria-label={t().titleLabel}
           onChange={(e) => dispatch({ type: "setTitle", id, title: e.target.value })}
           onKeyDown={(e) => {
             // 제목에서 Tab, Enter, ↓ → 본문으로. 한글 조합 중 Enter는 조합을 끝내는 키라 건드리지 않는다.
@@ -110,12 +115,12 @@ export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidt
             }
           }}
         />
-        <IconButton title={minimized ? "복원" : "최소화"} onClick={() => dispatch({ type: "toggleMinimize", id })}>
+        <IconButton title={minimized ? t().unminimize : t().minimize} onClick={() => dispatch({ type: "toggleMinimize", id })}>
           {minimized ? <IconRestore /> : <IconMinimize />}
         </IconButton>
         {/* 최상위 노트는 닫을 수 없다. 삭제는 상단바 우클릭 메뉴에 있다. */}
         {!isRoot && (
-          <IconButton className="x" title="닫기" onClick={() => dispatch({ type: "close", id })}>
+          <IconButton className="x" title={t().close} onClick={() => dispatch({ type: "close", id })}>
             <IconX />
           </IconButton>
         )}
@@ -181,7 +186,7 @@ function HeightGrip({ onCommit }: { onCommit: (height: number) => void }) {
   return (
     <div
       className="hgrip"
-      title="높이 조절"
+      title={t().resizeHeight}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => {
         const panel = e.currentTarget.parentElement!;
@@ -224,7 +229,7 @@ function WidthGrip({ extra, onCommit }: { extra: number; onCommit: (width: numbe
   return (
     <div
       className="wgrip"
-      title="너비 조절"
+      title={t().resizeWidth}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => {
         const col = e.currentTarget.closest<HTMLElement>(".col")!;
@@ -274,7 +279,7 @@ function CornerGrip({ extra, onCommit }: { extra: number; onCommit: (width: numb
   return (
     <div
       className="cgrip"
-      title="크기 조절"
+      title={t().resize}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => {
         const panel = e.currentTarget.parentElement!;

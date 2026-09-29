@@ -171,6 +171,23 @@ export function appendLink(doc: JSONContent, id: string): JSONContent {
   return next;
 }
 
+/**
+ * 링크 앞의 글: 링크가 있는 줄에서 링크 바로 앞까지의 글(앞에 다른 링크가 있으면 그 뒤부터). 없으면 "".
+ * 새 하위 노트의 제목 자리 안내 글로 쓴다("장보기 [>]" → "장보기").
+ */
+export function linkLeadText(doc: JSONContent, id: string): string {
+  let found = "";
+  walk(doc, (n) => {
+    if (found || !n.content) return;
+    const i = n.content.findIndex((c) => c.type === LINK_NODE && String(c.attrs?.id) === id);
+    if (i < 0) return;
+    let text = "";
+    for (let k = i - 1; k >= 0 && n.content[k].type !== LINK_NODE; k--) text = (n.content[k].text ?? "") + text;
+    found = text.trim() || " ";
+  });
+  return found.trim();
+}
+
 /** 링크가 속한 옮길 단위: 가장 가까운 목록 항목, 없으면 최상위 블록 */
 function unitPath(doc: JSONContent, linkPath: number[]): number[] {
   for (let len = linkPath.length - 1; len > 0; len--) {

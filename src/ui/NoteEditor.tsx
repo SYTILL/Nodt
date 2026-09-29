@@ -56,24 +56,34 @@ export function NoteEditor({ note, onReady, focusTitle }: Props) {
     return () => onReady(null);
   }, [editor, onReady]);
 
-  // 밖에서 문서가 바뀌었으면 에디터에 반영하고 커서 자리를 지킨다
+  // 밖에서 문서가 바뀌었으면 에디터에 반영하고 커서 자리를 지킨다.
+  // 되돌리기·다시 실행으로 바뀐 것이면 바뀐 자리 끝으로 커서를 옮긴다.
+  const undoSeq = app.state.undoSeq;
+  const seenUndo = useRef(undoSeq);
   useEffect(() => {
+    const byUndo = seenUndo.current !== undoSeq;
+    seenUndo.current = undoSeq;
     if (!editor || note.doc === lastDoc.current) return;
     const doc = note.doc;
     lastDoc.current = doc;
     // 링크 칩(React 노드 뷰)을 새로 그리는 일이 React 렌더 도중에 일어나지 않게 한 박자 미룬다
     queueMicrotask(() => {
       if (editor.isDestroyed || lastDoc.current !== doc) return;
-      const { from, to } = editor.state.selection;
+      let { from, to } = editor.state.selection;
+      if (byUndo) {
+        const diff = editor.state.doc.content.findDiffEnd(editor.schema.nodeFromJSON(doc).content);
+        if (diff) from = to = diff.b;
+      }
       editor.commands.setContent(doc, { emitUpdate: false });
       const max = editor.state.doc.content.size;
       try {
         editor.commands.setTextSelection({ from: Math.min(from, max), to: Math.min(to, max) });
+        if (byUndo) editor.commands.scrollIntoView();
       } catch {
         // 자리가 없어졌으면 그대로 둔다
       }
     });
-  }, [editor, note.doc]);
+  }, [editor, note.doc, undoSeq]);
 
   return <EditorContent editor={editor} className="editor" />;
 }

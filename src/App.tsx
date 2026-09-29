@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { cancelCut, pendingCut } from "./editor/clipboard";
 import { slashStore } from "./editor/slash";
+import { setLang, t } from "./i18n";
 import { reducer, siblingsOf, type Action, type Dir, type State } from "./state/store";
 import { applyTheme, type Mode } from "./theme/themes";
 import { AppContext, type AppApi } from "./ui/appContext";
@@ -10,7 +11,7 @@ import { TOAST_EVENT, type Session } from "./ui/session";
 import { SlashMenu } from "./ui/SlashMenu";
 import { TitleBar } from "./ui/TitleBar";
 import { changesLayout, withTransition } from "./ui/transition";
-import { applyBackdrop, applyMinSize } from "./platform";
+import { applyBackdrop } from "./platform";
 import { Workspace } from "./ui/Workspace";
 
 const TOAST_MS = 2600;
@@ -40,6 +41,9 @@ interface Props {
 
 export default function App({ initial, onState, session }: Props) {
   const [state, raw] = useReducer(reducer, initial);
+  // 화면 글의 언어를 그리기 전에 맞춘다(자식 컴포넌트와 리듀서가 t()로 읽는다)
+  setLang(state.settings.lang);
+  const T = t();
   const stateRef = useRef(state);
   stateRef.current = state;
   const animate = useCallback((fn: () => void) => withTransition(fn), []);
@@ -63,8 +67,6 @@ export default function App({ initial, onState, session }: Props) {
   const { theme, brightness, transparency, backdrop } = state.settings;
   const mode = brightness === "system" ? systemMode : brightness;
   useLayoutEffect(() => applyTheme(document.documentElement, theme, mode), [theme, mode]);
-  const { lines } = state.settings;
-  useEffect(() => void applyMinSize(lines), [lines]);
   // 배경 투명도: Mica 위에 깔리는 배경색의 진하기. 상단바는 배경보다 조금 더 비친다.
   useLayoutEffect(() => {
     const root = document.documentElement.style;
@@ -101,7 +103,12 @@ export default function App({ initial, onState, session }: Props) {
         if (slashStore.get() || e.isComposing) return;
         stop();
         if (pendingCut() && !s.overlay && !s.menu) cancelCut();
-        else dispatch({ type: "escape" });
+        else {
+          // 메뉴·오버레이·모드·오류 알림이 없으면 Esc는 어디서든 선택을 풀고 글 입력 초점도 뺀다
+          const deselect = !s.overlay && !s.menu && !s.moveOrigin && !s.toast?.error && !!s.active;
+          dispatch({ type: "escape" });
+          if (deselect) (document.activeElement as HTMLElement | null)?.blur();
+        }
         return;
       }
       // Ctrl+N: 새 노트. 선택한 패널이 없으면 최상위 노트, 있으면 그 노트의 하위 노트 링크.
@@ -120,10 +127,13 @@ export default function App({ initial, onState, session }: Props) {
         return;
       }
       if (s.overlay || s.menu) return;
-      // 되돌리기 알림이 떠 있는 동안 Ctrl+Z는 삭제를 되돌린다
-      if (e.ctrlKey && !e.shiftKey && (e.key.toLowerCase() === "z" || e.code === "KeyZ") && s.deleted) {
+      // 전역 되돌리기: Ctrl+Z 되돌리기, Ctrl+Shift+Z·Ctrl+Y 다시 실행. 커서가 어느 노트에 있든 앱 전체 기록을 따른다.
+      // 에디터와 입력칸의 자체 되돌리기는 쓰지 않는다(에디터는 extensions.ts에서 껐다).
+      const isZ = e.code === "KeyZ" || e.key.toLowerCase() === "z";
+      const isY = e.code === "KeyY" || e.key.toLowerCase() === "y";
+      if (e.ctrlKey && !e.altKey && !e.metaKey && (isZ || isY) && !e.isComposing) {
         stop();
-        dispatch({ type: "undoDelete" });
+        dispatch({ type: isY || e.shiftKey ? "redo" : "undo" });
         return;
       }
       if (e.ctrlKey && e.key === "Tab") {
@@ -161,8 +171,19 @@ export default function App({ initial, onState, session }: Props) {
         dispatch({ type: "nav", dir });
       }
     }
+    // 브라우저 메뉴 등으로 오는 되돌리기 입력도 전역 기록으로 돌린다
+    function onBeforeInput(e: InputEvent) {
+      if (e.inputType !== "historyUndo" && e.inputType !== "historyRedo") return;
+      if (stateRef.current.overlay) return;
+      e.preventDefault();
+      dispatch({ type: e.inputType === "historyUndo" ? "undo" : "redo" });
+    }
     window.addEventListener("keydown", onKeyCapture, true);
-    return () => window.removeEventListener("keydown", onKeyCapture, true);
+    window.addEventListener("beforeinput", onBeforeInput, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyCapture, true);
+      window.removeEventListener("beforeinput", onBeforeInput, true);
+    };
   }, [dispatch]);
 
   return (
@@ -171,18 +192,18 @@ export default function App({ initial, onState, session }: Props) {
         <TitleBar warn={state.warn} dispatch={dispatch} />
         {/* 초기화하면 화면(캔버스 위치, 에디터)을 새로 만든다 */}
         <Workspace key={state.epoch} state={state} dispatch={dispatch} />
-        {state.moveOrigin && <div className="movebar">패널이동모드 · 방향키로 이동 · Enter 선택 · Esc 취소</div>}
+        {state.moveOrigin && <div className="movebar">{T.moveMode}</div>}
         {state.toast && (
           <div className={"toast" + (state.toast.error ? " error" : "")} role={state.toast.error ? "alert" : "status"} key={state.toast.seq}>
             <span className="toast-msg">{state.toast.message}</span>
             {state.toast.error && (
               <button type="button" className="toast-act" onClick={() => dispatch({ type: "toast", message: null })}>
-                닫기 <span className="hint">Esc</span>
+                {T.close} <span className="hint">Esc</span>
               </button>
             )}
             {state.toast.undo && (
-              <button type="button" className="toast-act" onClick={() => dispatch({ type: "undoDelete" })}>
-                되돌리기 <span className="hint">Ctrl+Z</span>
+              <button type="button" className="toast-act" onClick={() => dispatch({ type: "undo" })}>
+                {T.undo} <span className="hint">Ctrl+Z</span>
               </button>
             )}
           </div>
