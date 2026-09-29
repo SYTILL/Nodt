@@ -45,7 +45,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lines: true,
   theme: "teal",
   brightness: "system",
-  backdrop: "mica",
+  backdrop: "none",
   transparency: 45,
 };
 

@@ -54,11 +54,12 @@ export function buildExtensions(getApi: GetApi) {
     }),
     TaskList,
     TaskItem.configure({ nested: true }),
-    // 안내 글은 최상위 노트에만 보인다. 하위 노트는 새로 열렸을 때 깔끔하게 비워 둔다.
+    // 안내 글은 최상위 노트의 본문이 통째로 비어 있을 때만 보인다(새 줄마다 뜨지 않게).
+    // 하위 노트는 새로 열렸을 때 깔끔하게 비워 둔다.
     Placeholder.configure({
-      placeholder: () => {
+      placeholder: ({ editor }) => {
         const api = getApi();
-        return api.getState().tree.parent[api.noteId] ? "" : t().bodyPlaceholder;
+        return editor.isEmpty && !api.getState().tree.parent[api.noteId] ? t().bodyPlaceholder : "";
       },
       showOnlyCurrent: true,
     }),

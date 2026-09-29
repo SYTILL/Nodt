@@ -21,6 +21,11 @@ const DANGER: Record<Mode, Record<string, string>> = {
 
 export const THEMES: Theme[] = [
   {
+    id: "teal",
+    light: { bg: "#F1F6F5", chrome: "#E7EFEE", panel: "#FFFFFF", text: "#16211F", muted: "#5F706C", line: "#DAE5E3", hover: "#ECF3F2", accent: "#0E7C72", "accent-ink": "#FFFFFF", "accent-soft": "#DDF0ED" },
+    dark: { bg: "#0F1515", chrome: "#0B1010", panel: "#161D1D", text: "#E0EAE8", muted: "#869794", line: "#253131", hover: "#1D2727", accent: "#3CC4B4", "accent-ink": "#06201D", "accent-soft": "#143432" },
+  },
+  {
     id: "cobalt",
     light: { bg: "#F3F5F8", chrome: "#EBEEF2", panel: "#FFFFFF", text: "#1B2230", muted: "#6A7383", line: "#DFE3E9", hover: "#EEF1F5", accent: "#3056D3", "accent-ink": "#FFFFFF", "accent-soft": "#E3E9FB" },
     dark: { bg: "#121519", chrome: "#0E1114", panel: "#1A1E24", text: "#E4E8EE", muted: "#8A93A1", line: "#2A3039", hover: "#232830", accent: "#7B98FF", "accent-ink": "#0E1222", "accent-soft": "#1F2946" },
@@ -29,11 +34,6 @@ export const THEMES: Theme[] = [
     id: "indigo",
     light: { bg: "#F4F3F8", chrome: "#ECEAF3", panel: "#FFFFFF", text: "#1F1B2E", muted: "#6E6982", line: "#E2DFEB", hover: "#F0EEF6", accent: "#5B4BD6", "accent-ink": "#FFFFFF", "accent-soft": "#E9E6FB" },
     dark: { bg: "#141219", chrome: "#0F0E14", panel: "#1C1A24", text: "#E7E4EF", muted: "#928CA3", line: "#2D2A38", hover: "#25222F", accent: "#9D8FFF", "accent-ink": "#15112A", "accent-soft": "#2A2548" },
-  },
-  {
-    id: "teal",
-    light: { bg: "#F1F6F5", chrome: "#E7EFEE", panel: "#FFFFFF", text: "#16211F", muted: "#5F706C", line: "#DAE5E3", hover: "#ECF3F2", accent: "#0E7C72", "accent-ink": "#FFFFFF", "accent-soft": "#DDF0ED" },
-    dark: { bg: "#0F1515", chrome: "#0B1010", panel: "#161D1D", text: "#E0EAE8", muted: "#869794", line: "#253131", hover: "#1D2727", accent: "#3CC4B4", "accent-ink": "#06201D", "accent-soft": "#143432" },
   },
   {
     id: "orange",
@@ -53,7 +53,7 @@ export const THEMES: Theme[] = [
 ];
 
 export function applyTheme(el: HTMLElement, themeId: ThemeId, mode: Mode) {
-  const theme = THEMES.find((t) => t.id === themeId) ?? THEMES[2];
+  const theme = THEMES.find((t) => t.id === themeId) ?? THEMES[0];
   for (const [k, v] of Object.entries({ ...theme[mode], ...DANGER[mode] })) {
     el.style.setProperty(`--${k}`, v);
   }

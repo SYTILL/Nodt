@@ -17,7 +17,7 @@ type HelpGroup = [string, [string, string][]];
 const en = {
   untitled: "Untitled",
   titleLabel: "Title",
-  bodyPlaceholder: "Write · / for commands",
+  bodyPlaceholder: "/ for commands",
   close: "Close",
   cancel: "Cancel",
   minimize: "Minimize",
@@ -209,7 +209,7 @@ export type Strings = typeof en;
 const ko: Strings = {
   untitled: "제목 없음",
   titleLabel: "제목",
-  bodyPlaceholder: "내용 · / 로 명령",
+  bodyPlaceholder: "/로 명령",
   close: "닫기",
   cancel: "취소",
   minimize: "최소화",

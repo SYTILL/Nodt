@@ -829,7 +829,7 @@ body.panel-dragging * {
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 18px 20px 16px;
+  padding: 18px 20px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
   display: flex;
   flex-direction: column;
@@ -953,6 +953,10 @@ kbd {
 .opt .lbl {
   color: var(--muted);
   font-size: 12px;
+}
+/* 설정: 소제목 아래의 선택지·설명은 살짝 들여 쓴다 */
+.opt:has(> .lbl) > :not(.lbl) {
+  margin-left: 10px;
 }
 .opt .col-opts {
   display: flex;

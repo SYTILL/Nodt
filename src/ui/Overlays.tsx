@@ -426,9 +426,9 @@ function SettingsSheet({
           value={settings.backdrop}
           onChange={(backdrop) => set({ backdrop })}
           options={[
+            ["none", S.off],
             ["mica", "Mica"],
             ["acrylic", "Acrylic"],
-            ["none", S.off],
           ]}
         />
         <span className="note">{S.backdropNote}</span>
