@@ -2,12 +2,16 @@ import { Fragment, useLayoutEffect, useRef, useState, type Dispatch, type Keyboa
 import { t } from "../i18n";
 import { descendants } from "../model/notes";
 import type { Action, State } from "../state/store";
+import type { Session } from "./session";
+import { FIT_ALL_EVENT } from "./transition";
 
 // 드롭다운 메뉴. 방향키로 항목을 옮기고 Enter로 고른다. Esc나 바깥 클릭으로 닫힌다.
 
 interface Item {
   label: string;
-  action: Action;
+  /** 고르면 보낼 동작. run이 있으면 그걸 대신 부른다. */
+  action?: Action;
+  run?: () => void;
   disabled?: boolean;
   danger?: boolean;
   /** 이 항목 위에 구분선 */
@@ -62,7 +66,8 @@ function Dropdown({ x, y, items, dispatch }: { x: number; y: number; items: Item
               disabled={it.disabled}
               onClick={() => {
                 close();
-                dispatch(it.action);
+                if (it.run) it.run();
+                else if (it.action) dispatch(it.action);
               }}
             >
               {it.label}
@@ -74,16 +79,32 @@ function Dropdown({ x, y, items, dispatch }: { x: number; y: number; items: Item
   );
 }
 
-/** 패널 상단바 우클릭 메뉴, 깨진 링크 클릭 메뉴 */
+/** 패널 상단바 우클릭 메뉴, 깨진 링크 클릭 메뉴, 빈 곳 우클릭 메뉴 */
 export function PanelMenu({
   menu,
   state,
   dispatch,
+  session,
 }: {
   menu: NonNullable<State["menu"]>;
   state: State;
   dispatch: Dispatch<Action>;
+  session: Session;
 }) {
+  if (menu.kind === "background") {
+    return (
+      <Dropdown
+        x={menu.x}
+        y={menu.y}
+        dispatch={dispatch}
+        items={[
+          { label: t().menu.newNote, action: { type: "createRoot", id: crypto.randomUUID() } },
+          { label: t().menu.fitAll, run: () => window.dispatchEvent(new Event(FIT_ALL_EVENT)) },
+          { label: t().menu.reload, run: () => void session.reload() },
+        ]}
+      />
+    );
+  }
   if (menu.kind === "broken") {
     const { parent, n } = menu;
     return (

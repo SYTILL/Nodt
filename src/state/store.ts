@@ -102,6 +102,7 @@ export interface State {
   menu:
     | { kind: "panel"; id: NoteId; x: number; y: number }
     | { kind: "broken"; parent: NoteId; n: number; x: number; y: number }
+    | { kind: "background"; x: number; y: number }
     | null;
   /** 선택한 패널. 빈 곳을 누르면 아무것도 선택하지 않은 상태(null)가 된다. */
   active: NoteId | null;
@@ -472,7 +473,8 @@ function apply(s: State, a: Action): State {
     }
 
     case "menu": {
-      const active = !a.menu ? s.active : a.menu.kind === "panel" ? a.menu.id : a.menu.parent;
+      // 빈 곳 우클릭은 빈 곳 클릭처럼 선택을 푼다
+      const active = !a.menu ? s.active : a.menu.kind === "panel" ? a.menu.id : a.menu.kind === "broken" ? a.menu.parent : null;
       return { ...s, menu: a.menu, active, warn: false };
     }
 

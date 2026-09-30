@@ -59,7 +59,7 @@ async function start() {
     setLang(urlLang ?? DEFAULT_SETTINGS.lang);
     root.render(
       <React.StrictMode>
-        <App initial={sampleState()} session={{ kind: "sample", dataDir: t().sampleDir }} />
+        <App initial={sampleState()} session={{ kind: "sample", dataDir: t().sampleDir, reload: async () => location.reload() }} />
       </React.StrictMode>,
     );
     return;
@@ -90,6 +90,10 @@ async function start() {
         saver.resume();
         throw e;
       }
+      location.reload();
+    },
+    reload: async () => {
+      await saver.flush(true);
       location.reload();
     },
   };

@@ -56,6 +56,9 @@ const en = {
     expandAll: "Expand all",
     collapseAll: "Collapse all",
     deleteNote: "Delete note",
+    newNote: "New note",
+    fitAll: "Fit all",
+    reload: "Reload",
   },
 
   slash: {
@@ -247,6 +250,9 @@ const ko: Strings = {
     expandAll: "하위 전체 펼치기",
     collapseAll: "하위 전체 접기",
     deleteNote: "노트 삭제",
+    newNote: "새 노트",
+    fitAll: "전체 보기",
+    reload: "새로고침",
   },
 
   slash: {

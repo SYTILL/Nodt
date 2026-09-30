@@ -5,7 +5,7 @@ import { growWindow } from "../platform";
 import { columns, lineage, lineageStrength, type Action, type State, type View } from "../state/store";
 import { Panel } from "./Panel";
 import { startPanelDrag } from "./panelDrag";
-import { followWhileRunning, RELAYOUT_EVENT, resist, scaleOf, SETTLED_EVENT } from "./transition";
+import { FIT_ALL_EVENT, followWhileRunning, RELAYOUT_EVENT, resist, scaleOf, SETTLED_EVENT } from "./transition";
 
 // 패널 영역. 창과 분리해 두어서 v0.2 플로팅 모드에서 창 배경만 투명하게 바꿀 수 있게 한다.
 // 스크롤 대신 캔버스처럼 쓴다. 빈 곳을 끌면 전체가 움직이고, 휠로 확대·축소한다.
@@ -171,6 +171,21 @@ export function Workspace({ state, dispatch }: Props) {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [applyView]);
+
+  // 전체 보기: 창 크기는 두고, 모든 패널이 들어오게 처음 자리에서 줄여 보여준다(100%보다 키우지는 않는다)
+  useEffect(() => {
+    function onFit() {
+      const root = rootRef.current;
+      const cols = canvasRef.current?.firstElementChild as HTMLElement | null;
+      if (!root || !cols || !cols.offsetWidth) return;
+      const z = Math.min(1, root.clientWidth / cols.offsetWidth, root.clientHeight / cols.offsetHeight);
+      stopInertia();
+      view.current = { x: 0, y: 0, z: Math.max(ZOOM_MIN, Math.floor(z * 100) / 100) };
+      applyView(GLIDE);
+    }
+    window.addEventListener(FIT_ALL_EVENT, onFit);
+    return () => window.removeEventListener(FIT_ALL_EVENT, onFit);
   }, [applyView]);
 
   // 빈 곳을 끌면 전체가 따라 움직인다
@@ -424,6 +439,12 @@ export function Workspace({ state, dispatch }: Props) {
       onPointerMove={onPanMove}
       onPointerUp={onPanEnd}
       onPointerCancel={onPanEnd}
+      onContextMenu={(e) => {
+        // 빈 곳 우클릭: 새 노트, 전체 보기, 새로고침
+        if (!(e.target as Element).matches(".ws, .canvas, .cols, .col, .col-inner, .wires, .empty-hint")) return;
+        e.preventDefault();
+        dispatch({ type: "menu", menu: { kind: "background", x: e.clientX, y: e.clientY } });
+      }}
     >
       <div ref={canvasRef} className="canvas">
         <div className="cols">

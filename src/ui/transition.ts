@@ -12,6 +12,8 @@ const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
 export const RELAYOUT_EVENT = "nodt:relayout";
 /** 패널이 열리고 닫히는 애니메이션이 모두 끝났을 때. 선택한 패널이 화면 밖으로 밀려났으면 데려온다. */
 export const SETTLED_EVENT = "nodt:settled";
+/** 모든 패널이 창 안에 들어오게 화면을 맞추라는 신호(빈 곳 우클릭 메뉴의 [전체 보기]) */
+export const FIT_ALL_EVENT = "nodt:fitall";
 
 const LAYOUT_ACTIONS = new Set<Action["type"]>([
   "toggleLink",

@@ -178,10 +178,17 @@ export default function App({ initial, onState, session }: Props) {
       e.preventDefault();
       dispatch({ type: e.inputType === "historyUndo" ? "undo" : "redo" });
     }
+    // WebView 기본 우클릭 메뉴(뒤로, 인쇄, 검사 등)는 글을 쓰는 곳에서만 남긴다(잘라내기·붙여넣기·맞춤법)
+    function onContextMenu(e: MouseEvent) {
+      const el = e.target as HTMLElement | null;
+      if (!el?.closest?.(".ProseMirror, input, textarea")) e.preventDefault();
+    }
     window.addEventListener("keydown", onKeyCapture, true);
+    window.addEventListener("contextmenu", onContextMenu);
     window.addEventListener("beforeinput", onBeforeInput, true);
     return () => {
       window.removeEventListener("keydown", onKeyCapture, true);
+      window.removeEventListener("contextmenu", onContextMenu);
       window.removeEventListener("beforeinput", onBeforeInput, true);
     };
   }, [dispatch]);
@@ -209,7 +216,7 @@ export default function App({ initial, onState, session }: Props) {
           </div>
         )}
         <SlashMenu />
-        {state.menu && <PanelMenu menu={state.menu} state={state} dispatch={dispatch} />}
+        {state.menu && <PanelMenu menu={state.menu} state={state} dispatch={dispatch} session={session} />}
         {state.overlay && <OverlayView overlay={state.overlay} settings={state.settings} dispatch={dispatch} session={session} />}
       </div>
     </AppContext.Provider>

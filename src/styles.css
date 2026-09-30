@@ -523,6 +523,7 @@ body.panel-dragging * {
 }
 .ProseMirror ul[data-type="taskList"] > li[data-checked="true"] > div > p {
   color: var(--muted);
+  text-decoration: line-through;
 }
 .ProseMirror input[type="checkbox"] {
   appearance: none;

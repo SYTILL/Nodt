@@ -12,6 +12,8 @@ export interface Session {
   /** 백업 목록과 되돌리기. Tauri에서만 된다. 되돌리면 앱이 새로 뜬다. */
   listBackups?: () => Promise<BackupInfo[]>;
   restoreBackup?: (id: string) => Promise<void>;
+  /** 지금 노트를 저장하고 앱을 새로 띄운다(파일을 다시 읽는다) */
+  reload: () => Promise<void>;
 }
 
 export const TOAST_EVENT = "nodt:toast";
