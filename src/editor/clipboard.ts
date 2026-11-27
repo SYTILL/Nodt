@@ -1,6 +1,6 @@
 import type { JSONContent } from "@tiptap/core";
 import { Fragment, Slice, type Node as PMNode, type Schema } from "@tiptap/pm/model";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { t } from "../i18n";
 import { LINK_NODE } from "../model/markdown";
@@ -33,6 +33,38 @@ export function cancelCut(): boolean {
   if (!c) return false;
   c.view.dispatch(c.view.state.tr.setMeta(cutKey, null));
   return true;
+}
+
+/** 제목 칸에 붙여넣기. 붙일 수 없으면 알림 글을 돌려주고, 붙일 수 있으면 null.
+ *  제목은 글 한 줄뿐이라 링크나 여러 줄은 받지 않는다. 잘라낸 글이면 원래 자리에서 지운다. */
+export function pasteIntoTitle(text: string): string | null {
+  const c = pendingCut();
+  const range = c && cutKey.getState(c.view.state);
+  if (c && range && linkIds(c.view.state.doc.slice(range.from, range.to).content).length) return t().titleNoLinks;
+  if (text.trim().includes("\n")) return t().titleOneLine;
+  if (c && range) {
+    cut = null;
+    c.view.dispatch(removeCut(c.view.state.tr, range.from, range.to).setMeta(cutKey, null));
+  }
+  return null;
+}
+
+/** 잘라낸 자리를 지운다. 줄을 통째로 잘랐으면 빈 줄(빈 글머리표 포함)도 남기지 않는다. */
+function removeCut(tr: Transaction, from: number, to: number): Transaction {
+  const $from = tr.doc.resolve(from);
+  const $to = tr.doc.resolve(to);
+  const whole = $from.parentOffset === 0 && $to.parentOffset === $to.parent.content.size;
+  tr.delete(from, to);
+  if (!whole) return tr;
+  const $p = tr.doc.resolve(tr.mapping.slice(tr.steps.length - 1).map(from));
+  if (!$p.parent.isTextblock || $p.parent.content.size) return tr;
+  // 빈 줄만 들어 있는 바깥 블록(목록 항목, 목록)까지 함께 지운다
+  let d = $p.depth;
+  while (d > 1 && $p.node(d - 1).childCount === 1) d--;
+  const parent = $p.node(d - 1);
+  const i = $p.index(d - 1);
+  if (parent.childCount > 1 && parent.canReplace(i, i + 1)) tr.delete($p.before(d), $p.after(d));
+  return tr;
 }
 
 function startCut(view: EditorView, noteId: NoteId, from: number, to: number) {
@@ -135,11 +167,11 @@ function moveCut(view: EditorView, getApi: GetApi): boolean {
       const tr = view.state.tr.replaceSelection(slice);
       const a = tr.mapping.map(range.from);
       const b = tr.mapping.map(range.to);
-      tr.delete(a, b).setMeta(cutKey, null).setMeta(KEEP_META, true).scrollIntoView();
+      removeCut(tr, a, b).setMeta(cutKey, null).setMeta(KEEP_META, true).scrollIntoView();
       view.dispatch(tr);
     } else {
       // 먼저 원래 자리에서 빼고(삭제 아님), 새 자리에 넣는다
-      src.dispatch(src.state.tr.delete(range.from, range.to).setMeta(cutKey, null).setMeta(KEEP_META, true));
+      src.dispatch(removeCut(src.state.tr, range.from, range.to).setMeta(cutKey, null).setMeta(KEEP_META, true));
       // 에디터마다 스키마 객체가 따로라서, 다른 에디터의 조각은 이 에디터 스키마로 다시 만들어야 들어간다
       const here = Slice.fromJSON(view.state.schema, slice.toJSON());
       view.dispatch(view.state.tr.replaceSelection(here).scrollIntoView());

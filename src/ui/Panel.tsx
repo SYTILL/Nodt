@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type PointerEvent, type ReactNode } from "react";
+import { pasteIntoTitle } from "../editor/clipboard";
 import { t } from "../i18n";
 import { linkLeadText, type NoteId } from "../model/notes";
 import type { Action, State } from "../state/store";
@@ -106,6 +107,13 @@ export function Panel({ id, state, dispatch, strength, onHeadPointerDown, onWidt
           spellCheck={false}
           aria-label={t().titleLabel}
           onChange={(e) => dispatch({ type: "setTitle", id, title: e.target.value })}
+          // 링크나 여러 줄은 붙이지 않고 알린다. 잘라 온 글이면 원래 자리에서 지운다(붙이기는 브라우저 기본 동작).
+          onPaste={(e) => {
+            const message = pasteIntoTitle(e.clipboardData.getData("text/plain"));
+            if (!message) return;
+            e.preventDefault();
+            dispatch({ type: "toast", message });
+          }}
           onKeyDown={(e) => {
             // 제목에서 Tab, Enter, ↓ → 본문으로. 한글 조합 중 Enter는 조합을 끝내는 키라 건드리지 않는다.
             if (e.nativeEvent.isComposing) return;
